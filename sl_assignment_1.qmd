@@ -1,0 +1,130 @@
+---
+title: "SL Assignment 1"
+author: "Pamela Afful"
+format: 
+    pdf:
+      fig-pos: 'H'
+editor: visual
+---
+
+```{r libs, eval=TRUE, echo=FALSE}
+#| message: false
+#| warning: false
+
+# install.packages(c("modelsummary", "fixest"))
+
+#install.packages("GGally")
+#install.packages("gtsummary")
+library(dplyr)
+library(knitr)
+#library(skimr)
+library(plotly)
+library(ggplot2)
+library(ggpubr)
+library(lubridate)
+library(zoo)
+library(tidyverse)
+library(GGally)
+library(modelsummary)
+library(stargazer)
+library(gtsummary)
+```
+
+```{r, data_read,echo=FALSE,eval=TRUE}
+boston_data_training=read.csv('my_boston.csv')
+boston_data=read.csv("boston.csv")
+
+#View(boston_data)
+```
+
+# Exploratory Data Aanlysis 
+
+```{r, dtypes,echo=FALSE,eval=TRUE}
+#| echo: false
+
+
+
+
+kable(data.frame(row_count=nrow(boston_data) , column_count=ncol(boston_data)),
+      caption = "boston data attributes")
+
+
+```
+
+```{r,na_count_per_col,echo=FALSE,eval=TRUE}
+
+col_types = sapply(boston_data, class)
+
+col_types_df = data.frame(column = names(col_types), DataType = as.character(col_types))
+
+#kable(col_types_df,caption = "boston data column data types")
+
+col=c('column','na_count')
+na_cnt=data.frame(colSums(is.na(boston_data))) %>%
+  rownames_to_column("old_index") %>% 
+  rename_with(~ col)
+
+
+
+
+kable(left_join(col_types_df,na_cnt,by='column'),caption='Boston Data Column Attributes')
+
+
+```
+
+```{r target_val_dist, eval=TRUE, echo=FALSE}
+
+boston_data %>% select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
+  ggplot(aes(x=medv) ) +
+  geom_boxplot() +
+  labs(title = "distribution of median house values",x='median house value')+
+  theme_minimal()
+
+
+
+```
+
+```{r feat_corr, eval=TRUE, echo=FALSE}
+#| message: false
+#| warning: false
+#| fig-height: 12
+#| fig-width: 14
+
+# comeback and make this look better
+# feat=c("crim",    "zn"      "indus"   "chas"    "nox"     "rm"      "age"     "dis"     "rad"     "tax"     "ptratio" "lstat"   "medv" )
+
+boston_data %>% select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
+  ggpairs(columns=1:13,mapping = aes(color = chas) ) +
+  labs(title = "Feature Pairwise Plot")+
+  theme_minimal()
+
+
+
+```
+
+-   will add more
+
+# Model Building
+
+```{r,lm_fit,eval=TRUE, echo=FALSE}
+
+#| message: false
+#| warning: false
+tr_d=boston_data_training %>% select(all_of(names(boston_data_training))) %>% mutate(chas=factor(chas,levels=c(0,1))) 
+
+all_feat_model=lm(medv ~ ., data=tr_d)
+
+  
+# modelsummary(
+#   all_feat_model,
+#   stars = TRUE,
+#   title = "Regression Results- All Features",
+#   output = "latex" 
+# )
+
+
+all_feat_model %>%
+  tbl_regression() %>%  
+add_glance_source_note() %>%
+  add_global_p() %>%
+```
