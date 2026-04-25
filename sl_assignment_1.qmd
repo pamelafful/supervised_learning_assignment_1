@@ -15,6 +15,11 @@ editor: visual
 
 #install.packages("GGally")
 #install.packages("gtsummary")
+#install.packages('stargazer')
+#install.packages('patchwork')
+#install.packages("glmnet")
+#install.packages('lmridge')
+
 library(dplyr)
 library(knitr)
 #library(skimr)
@@ -28,6 +33,9 @@ library(GGally)
 library(modelsummary)
 library(stargazer)
 library(gtsummary)
+library(patchwork)
+library(glmnet)
+library(lmridge)
 ```
 
 ```{r, data_read,echo=FALSE,eval=TRUE}
@@ -37,7 +45,7 @@ boston_data=read.csv("boston.csv")
 #View(boston_data)
 ```
 
-# Exploratory Data Aanlysis 
+# Exploratory Data Aanlysis
 
 ```{r, dtypes,echo=FALSE,eval=TRUE}
 #| echo: false
@@ -113,7 +121,7 @@ boston_data %>% select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,l
 tr_d=boston_data_training %>% select(all_of(names(boston_data_training))) %>% mutate(chas=factor(chas,levels=c(0,1))) 
 
 all_feat_model=lm(medv ~ ., data=tr_d)
-
+summary(all_feat_model)
   
 # modelsummary(
 #   all_feat_model,
@@ -126,5 +134,142 @@ all_feat_model=lm(medv ~ ., data=tr_d)
 all_feat_model %>%
   tbl_regression() %>%  
 add_glance_source_note() %>%
-  add_global_p() %>%
+  add_global_p()
+```
+
+Model Performance
+
+-   The model shows a relatively good fit to the training data, with \~73% of the variation in the data, captured/explained by the model
+
+-   10 out of 12 (check again) are significant at the 5% level
+
+-   Comeback\*
+
+**Prediction of test dataset**
+
+```{r,test_pred,eval=TRUE,echo=FALSE}
+
+
+row_labels_training = rownames(boston_data_training)
+row_labels_all=rownames(boston_data)
+
+test_indicies=setdiff(row_labels_all,row_labels_training)
+test_data=boston_data %>% slice(sapply(test_indicies,as.integer))
+a=colnames(test_data)
+features=a[1:length(a)-1]
+new_data=test_data %>% select(all_of(features)) %>% mutate(chas=factor(chas,levels=c(0,1)))
+
+
+test_predictions=predict(all_feat_model,newdata=new_data)
+
+```
+
+```{r,test_mse,eval=TRUE,echo=FALSE}
+
+
+mse_func=function(ytrue,y_pred){
+  errors=y_true-y_pred
+  mse=mean(errors**2)
+  return(mse)
+}
+
+mse_base=mse_func(y_true,test_predictions)
+
+aic_base=AIC(all_feat_model,k=2)
+
+
+
+mse_func(y_true,test_predictions)
+aic_base
+```
+
+# Model Improvement
+
+**Backwards Step wise Variable Selection**
+
+```{r,bk_step,echo=FALSE,eval=TRUE}
+
+# Backwides Stepwise Regression
+# incrementally decrease the number of features from the regression 
+# For each removal, fit the model
+# apply fit model on test data-subsetted for the selected features
+# store the mse for each iteration
+
+mses=c()
+model_feat=c()
+aics=c()
+
+
+for(i in 1:length(features)-1  ){
+  new_features=head(features,-i)
+  model_feat=c(model_feat,length(new_features))
+  train_set=boston_data_training %>% mutate(chas=factor(chas,levels=c(0,1)))%>% select( all_of( c('medv',new_features)))
+  sel_feat_model=lm(medv ~ ., data=train_set)
+  new_data_i=test_data %>% mutate(chas=factor(chas,levels=c(0,1))) %>%
+    select(all_of(new_features)) 
+  test_predictions_i=predict(sel_feat_model,newdata=new_data_i)
+  y_true=test_data %>% select(medv) %>% pull()
+  error_i=mse_func(y_true,test_predictions_i)
+  mses=c(mses,error_i)
+  aic=AIC(sel_feat_model,k=2)
+  aics=c(aics,aic)
+  
+}
+
+mses[1]=mse_base
+model_feat[1]=12 # replace with baseline model number of features
+aics[1]=aic_base
+
+# Create dataframe from the above
+backwards_feat_sel_metrics=data.frame(number_features=model_feat,aic=aics,mse=mses)
+
+
+```
+
+```{r,plot_bk_metrics,echo=FALSE,eval=TRUE}
+aic_plot=backwards_feat_sel_metrics %>% 
+  mutate(number_features=factor(number_features)) %>% 
+  ggplot(aes(x=number_features,y=aic,group = 1))+
+  geom_line()+
+  geom_point()+
+  labs(title = "Test AIC vs Number of Training Features- Backward Stepwise Selection",x='#Features',y='Test AIC')+
+  geom_vline(xintercept = 12) +
+  annotate("text", x = 10.5, y = 2800, label = "Baseline-all features", angle = 0)+
+  theme_minimal()
+
+
+mse_plot=backwards_feat_sel_metrics %>% 
+  mutate(number_features=factor(number_features)) %>% 
+  ggplot(aes(x=number_features,y=mse,group = 1))+
+  geom_line()+
+  geom_point()+
+  labs(title = "Test MSE vs Number of Training Features- Backward Stepwise Selection",x='#Features',y='Test MSE')+
+  geom_vline(xintercept = 12) +
+  annotate("text", x = 10.5, y = 40, label = "Baseline-all features", angle = 0)+
+  theme_minimal()
+
+
+aic_plot/mse_plot
+```
+
+```{r,ridge_regr,eval=TRUE,echo=FALSE}
+
+regressors= boston_data_training %>% mutate(chas=factor(chas,levels=c(0,1)))%>% select( all_of( c('medv',features)))
+regressors_x=model.matrix(medv~.,data=regressors)[,-1]
+y=boston_data_training$medv
+
+# For ridge, alpah =0
+ridge_model = lmridge#glmnet(regressors_x, y, alpha = 0)
+
+# get predictions
+new_x=model.matrix(medv~.,data=test_data)[,-1]
+ridge_pred=predict(ridge_model,newx=new_x)
+
+# get ridge metrics
+mse_ridge=mse_func(y_true,ridge_pred)
+
+
+# get AIC
+info_criteria=infocr(ridge_model)
+
 ```
