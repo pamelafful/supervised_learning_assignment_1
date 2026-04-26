@@ -19,6 +19,7 @@ editor: visual
 #install.packages('patchwork')
 #install.packages("glmnet")
 #install.packages('lmridge')
+#install.packages('MASS')
 
 library(dplyr)
 library(knitr)
@@ -36,6 +37,10 @@ library(gtsummary)
 library(patchwork)
 library(glmnet)
 library(lmridge)
+library(tidyr)
+library(caret)
+library(MASS)
+library(dplyr)
 ```
 
 ```{r, data_read,echo=FALSE,eval=TRUE}
@@ -45,7 +50,7 @@ boston_data=read.csv("boston.csv")
 #View(boston_data)
 ```
 
-# Exploratory Data Aanlysis
+# Exploratory Data Analysis
 
 ```{r, dtypes,echo=FALSE,eval=TRUE}
 #| echo: false
@@ -82,7 +87,7 @@ kable(left_join(col_types_df,na_cnt,by='column'),caption='Boston Data Column Att
 
 ```{r target_val_dist, eval=TRUE, echo=FALSE}
 
-boston_data %>% select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
+boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
   ggplot(aes(x=medv) ) +
   geom_boxplot() +
   labs(title = "distribution of median house values",x='median house value')+
@@ -101,16 +106,33 @@ boston_data %>% select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,l
 # comeback and make this look better
 # feat=c("crim",    "zn"      "indus"   "chas"    "nox"     "rm"      "age"     "dis"     "rad"     "tax"     "ptratio" "lstat"   "medv" )
 
-boston_data %>% select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
+boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
   ggpairs(columns=1:13,mapping = aes(color = chas) ) +
   labs(title = "Feature Pairwise Plot")+
   theme_minimal()
-
-
-
 ```
 
--   will add more
+```{r,corr}
+library(reshape2)
+corr_data=boston_data %>% mutate(chas=factor(chas)) %>% 
+  dplyr::select(where(is.numeric)) %>% 
+  cor(use = "pairwise.complete.obs")
+
+
+corr_data_df=melt(corr_data)
+
+corr_data_df %>% ggplot(aes(x=Var2, y=Var1, fill=value))+
+geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Pearson\nCorrelation") +
+  geom_text(aes(label = round(value, 2)), color = "black")+
+  labs(title = "Feature Correlation Matrix",x='Feature',y='Feature')+
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1))
+
+
+  
+```
 
 # Model Building
 
@@ -118,7 +140,22 @@ boston_data %>% select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,l
 
 #| message: false
 #| warning: false
-tr_d=boston_data_training %>% select(all_of(names(boston_data_training))) %>% mutate(chas=factor(chas,levels=c(0,1))) 
+
+# Scale the data before training
+features=head(names(boston_data_training),-1)
+boston_data_training=as.tibble(boston_data_training) 
+
+# Scale the data- standardization
+# Every feaure except the chas feature
+scaled_trd=data.frame(scale(boston_data_training %>% dplyr::select(any_of(features[features!='chas']))))
+
+scaled_trd$chas=boston_data_training$chas
+scaled_trd$medv=boston_data_training$medv
+
+tr_d=boston_data_training %>% 
+    mutate(chas=factor(chas,levels=c(0,1))) 
+
+
 
 all_feat_model=lm(medv ~ ., data=tr_d)
 summary(all_feat_model)
@@ -131,10 +168,10 @@ summary(all_feat_model)
 # )
 
 
-all_feat_model %>%
-  tbl_regression() %>%  
-add_glance_source_note() %>%
-  add_global_p()
+# all_feat_model %>%
+#   tbl_regression() %>%  
+# add_glance_source_note() %>%
+#   add_global_p()
 ```
 
 Model Performance
@@ -157,16 +194,25 @@ test_indicies=setdiff(row_labels_all,row_labels_training)
 test_data=boston_data %>% slice(sapply(test_indicies,as.integer))
 a=colnames(test_data)
 features=a[1:length(a)-1]
-new_data=test_data %>% select(all_of(features)) %>% mutate(chas=factor(chas,levels=c(0,1)))
+new_data=test_data %>% dplyr::select(all_of(features)) %>% mutate(chas=factor(chas,levels=c(0,1)))
 
+scaled_test_features=data.frame(scale(new_data %>% 
+        dplyr::select(any_of(features[!features %in% c('chas','zn')])
+               )) )
+scaled_test_features$chas=new_data$chas
+scaled_test_features$zn=new_data$zn
+#scaled_test_features$medv=test_data$medv
 
+      
 test_predictions=predict(all_feat_model,newdata=new_data)
+
+
 
 ```
 
 ```{r,test_mse,eval=TRUE,echo=FALSE}
 
-
+y_true=test_data$medv
 mse_func=function(ytrue,y_pred){
   errors=y_true-y_pred
   mse=mean(errors**2)
@@ -175,17 +221,19 @@ mse_func=function(ytrue,y_pred){
 
 mse_base=mse_func(y_true,test_predictions)
 
-aic_base=AIC(all_feat_model,k=2)
-
+aic_base=AIC(all_feat_model,k=2) # use default value
+bic_base=BIC(all_feat_model)
 
 
 mse_func(y_true,test_predictions)
-aic_base
+bic_base
 ```
 
 # Model Improvement
 
 **Backwards Step wise Variable Selection**
+
+ref website:<https://alain-vandormael.netlify.app/post/varselect/#:~:text=Stepwise%20regression,next%20deletion%20increases%20the%20AIC.>
 
 ```{r,bk_step,echo=FALSE,eval=TRUE}
 
@@ -198,78 +246,225 @@ aic_base
 mses=c()
 model_feat=c()
 aics=c()
+bics=c()
 
+set.seed(123)
+
+# MANUAL FOR LOOP
 
 for(i in 1:length(features)-1  ){
   new_features=head(features,-i)
   model_feat=c(model_feat,length(new_features))
-  train_set=boston_data_training %>% mutate(chas=factor(chas,levels=c(0,1)))%>% select( all_of( c('medv',new_features)))
+  train_set=boston_data_training %>% mutate(chas=factor(chas,levels=c(0,1)))%>% dplyr::select( all_of( c('medv',new_features)))
   sel_feat_model=lm(medv ~ ., data=train_set)
   new_data_i=test_data %>% mutate(chas=factor(chas,levels=c(0,1))) %>%
-    select(all_of(new_features)) 
-  test_predictions_i=predict(sel_feat_model,newdata=new_data_i)
-  y_true=test_data %>% select(medv) %>% pull()
-  error_i=mse_func(y_true,test_predictions_i)
+    dplyr::select(all_of(new_features)) 
+  train_predictions_i=predict(sel_feat_model)#newdata=new_data_i use training vals
+  y_true=train_set %>% dplyr::select(medv) %>% pull()
+  error_i=mse_func(y_true,train_predictions_i)
   mses=c(mses,error_i)
-  aic=AIC(sel_feat_model,k=2)
+  aic=AIC(sel_feat_model,k=2) # using default value
+  bic=AIC(sel_feat_model)
   aics=c(aics,aic)
-  
+  bics=c(bics,bic)
 }
+
+mod0=lm(medv ~1 , data=tr_d) 
+bk_model=step(all_feat_model,direction='backward',scope=formula(mod0), trace = 0)
+
+# Using in-built packages
+# Mass Package
+# Implemetation
+# Using with CV
+# Using AIC and the discriminating metric
+# lower bound- intercept regression
+# train_set = trainControl(method="cv", number=10) # cv
+# cv_mod_feat_sel = train(medv ~ ., data=tr_d,  scope = formula(mod0),method="lmStepAIC", direction="backward", trace=FALSE, trControl=train_set,preProcess='scale') #use CV to train using CV using the stepAIC method
+# 
+# cv_mod_feat_sel$finalModel;AIC(cv_mod_feat_sel$finalModel)
+# 
+# bk_feat_model=stepAIC(all_feat_model, direction = "backward", scope = formula(mod0), trace=FALSE) # bk selection model
+# 
+# 
+#bk_feat_model$anova
+
+# coef(bk_feat_model) # 10/13 coefficients/features elected from bk elimination
+# AIC(bk_feat_model) # best AIC score 
+# bk_feat_model$anova
+
+
+
+
+
+
+
+```
+
+```{r,plot_bk_metrics,echo=FALSE,eval=F}
 
 mses[1]=mse_base
 model_feat[1]=12 # replace with baseline model number of features
 aics[1]=aic_base
 
+
+ # replace with baseline model number of features
+bics[1]=bic_base
+
 # Create dataframe from the above
-backwards_feat_sel_metrics=data.frame(number_features=model_feat,aic=aics,mse=mses)
-
-
-```
-
-```{r,plot_bk_metrics,echo=FALSE,eval=TRUE}
+backwards_feat_sel_metrics=data.frame(number_features=model_feat,aic=aics,bic=bics,mse=mses)
 aic_plot=backwards_feat_sel_metrics %>% 
   mutate(number_features=factor(number_features)) %>% 
-  ggplot(aes(x=number_features,y=aic,group = 1))+
+  ggplot(aes(x=number_features,y=aic,group = 1,color='blue'))+
   geom_line()+
   geom_point()+
-  labs(title = "Test AIC vs Number of Training Features- Backward Stepwise Selection",x='#Features',y='Test AIC')+
+  labs(title = "Training AIC vs Number of Training Features- Backward Stepwise Selection",x='#Features',y='train AIC')+
   geom_vline(xintercept = 12) +
   annotate("text", x = 10.5, y = 2800, label = "Baseline-all features", angle = 0)+
   theme_minimal()
 
+bic_plot=backwards_feat_sel_metrics %>% 
+  mutate(number_features=factor(number_features)) %>% 
+  ggplot(aes(x=number_features,y=bic,group = 1,color='blue'))+
+  geom_line()+
+  geom_point()+
+  labs(title = "Training BIC vs Number of Training Features- Backward Stepwise Selection",x='#Features',y='train BIC')+
+  geom_vline(xintercept = 12) +
+  annotate("text", x = 10.5, y = 2800, label = "Baseline-all features", angle = 0)+
+  theme_minimal()
 
 mse_plot=backwards_feat_sel_metrics %>% 
   mutate(number_features=factor(number_features)) %>% 
-  ggplot(aes(x=number_features,y=mse,group = 1))+
+  ggplot(aes(x=number_features,y=mse,group = 1,color='blue'))+
   geom_line()+
   geom_point()+
-  labs(title = "Test MSE vs Number of Training Features- Backward Stepwise Selection",x='#Features',y='Test MSE')+
+  labs(title = "Training MSE vs Number of Training Features- Backward Stepwise Selection",x='#Features',y='train MSE')+
   geom_vline(xintercept = 12) +
   annotate("text", x = 10.5, y = 40, label = "Baseline-all features", angle = 0)+
   theme_minimal()
 
 
-aic_plot/mse_plot
+aic_plot/bic_plot/mse_plot
 ```
 
 ```{r,ridge_regr,eval=TRUE,echo=FALSE}
 
-regressors= boston_data_training %>% mutate(chas=factor(chas,levels=c(0,1)))%>% select( all_of( c('medv',features)))
+regressors= boston_data_training %>% mutate(chas=factor(chas,levels=c(0,1)))%>% dplyr::select( all_of( c('medv',features)))
 regressors_x=model.matrix(medv~.,data=regressors)[,-1]
 y=boston_data_training$medv
 
-# For ridge, alpah =0
-ridge_model = lmridge#glmnet(regressors_x, y, alpha = 0)
+# use lmridge , fit for a range of alphas
+# from the lm ride documentation, the regressors are scaled, the "scale" option scales the data st it has mean=0 and var=1
+# Using this method so we can track the aic
+# Use various values of K/alpha and use AIC/BIC to choose the best penalty parameter 
+ridge_model =lmridge(y~., data = boston_data_training, K = seq(0, 0.1, 0.01) , scaling = "scaled")
+
 
 # get predictions
-new_x=model.matrix(medv~.,data=test_data)[,-1]
-ridge_pred=predict(ridge_model,newx=new_x)
+#ridge_pred=predict(ridge_model,newdata=test_data)
 
 # get ridge metrics
-mse_ridge=mse_func(y_true,ridge_pred)
-
+#mse_ridge=mse_func(y_true,ridge_pred)
+#mse_ridge
 
 # get AIC
 info_criteria=infocr(ridge_model)
+info_criteria_df=as.data.frame(info_criteria)
+
+info_criteria_df$K=seq(0, 0.1, 0.01) 
+
+pivot_longer(info_criteria_df,
+                    cols=c('AIC','BIC'),
+                    names_to='IC Metric',
+                    values_to='Score'
+                    ) %>% 
+  ggplot(aes(x=K,y=Score,color=`IC Metric`))+
+  geom_line()+
+  geom_point()+
+  labs(title = "Ridge Regression Training AIC/BIC",x='alpha',y='Score')+
+  theme_minimal()
+  
+
+```
+
+Best lambda val=0 for AIC consideration
+
+```{r,ridge_regr,eval=TRUE,echo=FALSE}
+x=data.matrix(boston_data_training[, features])
+y=boston_data_training$medv
+cv_model_ridge=cv.glmnet(x, y, alpha = 0) # using kfolds, k=10
+
+#plot(cv_model)
+
+coef(cv_model_ridge, s = "lambda.1se")
+
+```
+
+```{r,lasso_regr,eval=TRUE,echo=FALSE}
+x=data.matrix(boston_data_training[, features])
+y=boston_data_training$medv
+cv_model_lasso=cv.glmnet(x, y, alpha = 1) # using kfolds, k=10
+
+#plot(cv_model) 
+# Top numbers= no. of non zero coefficients for that value of lambda
+# 
+coef(cv_model_lasso, s = "lambda.1se") # best trade off between model simplicity and accurancy
+```
+
+```{r pred_mse, eval=TRUE, echo=F}
+#| message: false
+#| warning: false
+
+test_data_feat=test_data %>% mutate(chas=factor(chas,levels=c(0,1)))%>% 
+  dplyr::select(all_of(features))
+
+test_data_feat_x=data.matrix(test_data[, features])
+y_test_true=as.vector(test_data %>% dplyr::select(medv) %>% pull())
+
+
+bk_test_predictions=predict(bk_model,newdata=test_data_feat)
+bk_test_predictions=as.vector(bk_test_predictions)
+lasso_test_predictions=as.vector(unname(predict(cv_model_lasso,newx=test_data_feat_x)))
+ridge_test_predictions=as.vector(unname(predict(cv_model_ridge,newx=test_data_feat_x)))
+
+all_test_predictions=data.frame(backward_selection=bk_test_predictions,
+                           ridge_predictions=ridge_test_predictions,
+                           lasso_predictions=lasso_test_predictions,
+                           y_true=y_test_true,
+                           pred_id=1:106
+                           )
+
+test_mses=c(mse_base)
+
+
+for(pred in head(names(all_test_predictions),-1) ){
+  model_pred=all_test_predictions %>% dplyr::select(any_of(pred)) %>% pull()
+  test_mse_i=mse_func(y_test_true,model_pred)
+  test_mses=c(test_mses,test_mse_i)
+  
+}
+  
+test_mses # add plot of ytrue vs predictions from the 
+
+all_test_predictions %>% ggplot(aes(x=pred_id)) + 
+  geom_line(aes(y = y_true, color = "ytrue"))+
+  geom_line(aes(y = backward_selection, color = "Backward Selection y_hat"))+
+  geom_line(aes(y = ridge_predictions, color = "Ridge y_hat"))+
+  geom_line(aes(y = ridge_predictions, color = "Lasso y_hat"))+
+  labs(title = "Test Data Prediction Comparison",x='observation index',y='y')+
+  theme_minimal()
+
+  
+test_mses_df=data.frame(metric=c('MSE'),all_features=test_mses[1],backwise_step=test_mses[2]                             ,ridge=test_mses[3],lasso=test_mses[3]
+                        )
+
+rownames(test_mses_df) <- test_mses_df$MSE
+kable(test_mses_df,caption = 'Model MSE Metrics')
+```
+
+\*best model= all features model (yikes!)
+
+```{r, interaction,eval=TRUE,echo=F}
+
+
 
 ```
