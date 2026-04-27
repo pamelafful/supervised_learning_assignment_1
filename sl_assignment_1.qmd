@@ -20,7 +20,7 @@ editor: visual
 #install.packages("glmnet")
 #install.packages('lmridge')
 #install.packages('MASS')
-
+#install.packages("interactions")
 library(dplyr)
 library(knitr)
 #library(skimr)
@@ -41,6 +41,7 @@ library(tidyr)
 library(caret)
 library(MASS)
 library(dplyr)
+library(interactions)
 ```
 
 ```{r, data_read,echo=FALSE,eval=TRUE}
@@ -463,8 +464,72 @@ kable(test_mses_df,caption = 'Model MSE Metrics')
 
 \*best model= all features model (yikes!)
 
+<https://statisticsbyjim.com/regression/interaction-effects/>
+
 ```{r, interaction,eval=TRUE,echo=F}
 
+# find an article to support this
+
+# cantidates= indus*dis or indus*nox (high population traffic area- more polution)
+
+# use an interaction plot to spot possible interactions
+
+#features
+# boston_data$chas=factor(boston_data$chas,levels=c(0,1))
+# with(boston_data,{interaction.plot(chas,rad,medv,fixed=T)}
+# )
+
+vars=names(all_feat_model$coefficients)
+vars_final=vars[vars!='chas1']
+ 
+
+coeff=numeric()
+
+for(i in 1:length(all_feat_model$coefficients)){
+ coeff[i]= all_feat_model$coefficients[[i]]
+}
+
+
+vars[i]
+
+chas_ind=which(vars=='chas1')
+chas_coeff=coeff[chas_ind]
+chas_= boston_data_training %>% dplyr::select(chas) %>% pull()
+coeff=coeff[-chas_ind]
+
+# features[features!='chas']
+# c_=all_feat_model$coefficients
+# c_[!c_ %in% c('chas')]
+
+
+
+for(i in 2:length( all_feat_model$coefficients)){
+  var_name=vars_final[i]
+  #i=2
+  x_df =boston_data_training %>%
+  dplyr::select(any_of(c(var_name, 'chas', 'medv') )) 
+  x=x_df %>% dplyr::select(var_name) %>% pull()
+  f_x=function(x) coeff[1]+coeff[i]*x+chas_coeff*chas_
+  x_df$predictions=f_x(x)
+  
+  p <- ggplot(x_df, aes(x = .data[[var_name]], color = factor(chas))) +
+    geom_point(aes(y = medv)) +
+    geom_line(aes(y = predictions, group = chas)) +
+    labs(
+      title = paste("Response vs", var_name),
+      x = var_name,
+      y = "medv"
+    ) +
+    theme_minimal()
+  
+  print(ggplotly(p))
+    
+  
+  
+  
+  
+}
+# Roupgly the difference between the two groups shoulf form a straight line which we could interprete as either an interaction exists or not
 
 
 ```
