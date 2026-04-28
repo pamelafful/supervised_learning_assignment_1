@@ -624,7 +624,7 @@ mse_func(int_test_data$medv,int_test_pred);16.6422	# not better, does not improv
 
 ```{r,train_errors_hist,echo=F,eval=T}
 errors=resid(all_feat_model)
-test_err=abs(test_data$medv-test_predictions)
+test_err=test_data$medv-test_predictions
 hist(errors,main='Distribution of Train Errors')
 hist(test_err,main='Distribution of Test Errors')
 
