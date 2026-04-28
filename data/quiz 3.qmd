@@ -1,0 +1,273 @@
+---
+title: "q3"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+library(dplyr)
+library(knitr)
+#library(skimr)
+library(plotly)
+library(ggplot2)
+library(ggpubr)
+library(lubridate)
+library(zoo)
+library(tidyverse)
+library(GGally)
+library(modelsummary)
+library(stargazer)
+library(gtsummary)
+library(patchwork)
+library(glmnet)
+library(lmridge)
+library(tidyr)
+library(caret)
+library(MASS)
+library(dplyr)
+library(interactions)
+
+library(tree)
+library(ROCR)
+
+
+```
+
+You can add options to executable code like this
+
+```{r}
+library(ISLR)
+
+data(Auto)
+set.seed(1)
+train <- sample(1:nrow(Auto), 0.8*nrow(Auto))
+train_df=Auto[train,]
+
+
+row_labels_training = rownames(train_df)
+row_labels_all=rownames(Auto)
+
+test_indicies=setdiff(row_labels_all,row_labels_training)
+test_data=Auto %>% slice(sapply(test_indicies,as.integer))
+
+
+all_features=names(Auto)
+features=all_features[all_features!='name']
+
+train_df=train_df %>% dplyr::select(any_of(features))
+test_df=test_data %>% dplyr::select(any_of(features))
+train_df;test_df
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+```{r}
+tree1=tree(mpg~.,data=train_df)
+tree1
+
+tree2=tree(mpg~.,data=train_df,mindev=0.001)
+
+
+
+set.seed(1)
+cv_tree <- cv.tree(tree2)
+
+#plot(cv_tree) # best=10
+
+tree3=prune.tree(tree2, best = 6)
+summary(tree2)
+
+cv_tree$size[which.min(cv_tree$dev)]
+```
+
+```{r}
+plot(cv_tree)
+```
+
+```{r}
+# RSS 
+
+plot(tree1)
+text(tree1, cex = 0.5)
+
+# run predictions
+
+tree1_pred=predict(tree1)
+train_yhat=train_df$mpg
+train_df$tree1_pred=tree1_pred
+
+low_reg=train_df %>% filter(displacement>190.5& horsepower>127)
+low_reg %>% dplyr::select(mpg,tree1_pred)
+
+low_reg_yhat=low_reg %>% dplyr::select(mpg,tree1_pred) %>% pull(tree1_pred)
+low_reg_ytrue=low_reg %>% dplyr::select(mpg,tree1_pred) %>% pull(mpg)
+
+
+
+
+mse_func=function(ytrue,y_pred){
+  errors=ytrue-y_pred
+  mse=mean(errors**2)
+  return(mse)
+}
+
+ytrue=low_reg_ytrue
+
+sum((ytrue-low_reg_yhat)**2)
+```
+
+```{r}
+summary(tree2)
+
+plot(tree2)
+text(tree2, cex = 0.5)
+```
+
+```{r}
+summary(tree3)
+```
+
+```{r}
+predictions_tree1=predict(tree1,newdata=test_df)
+predictions_tree2=predict(tree2,newdata=test_df)
+predictions_tree3=predict(tree3,newdata=test_df)
+
+ytrue_test=test_df$mpg
+
+mse_func(ytrue_test,predictions_tree1);mse_func(ytrue_test,predictions_tree2);mse_func(ytrue_test,predictions_tree3)
+```
+
+```{r}
+#Q18
+
+library(MASS)
+data(biopsy)
+attach(biopsy)
+biopsy <- na.omit(biopsy)[-1]
+
+
+# Y=biopsy %>% mutate(class_num =case_when(class=='benign'~0,
+#                                               class=='malignant'~1
+#                                               
+#   
+# )) %>% dplyr::select(class_num) %>% pull()
+
+
+set.seed(5076)
+rand_sel <- sample(nrow(biopsy), 0.7*nrow(biopsy))
+train <- biopsy[rand_sel,]
+Y_train=train %>% mutate(class_num =case_when(class=='benign'~0,
+                                              class=='malignant'~1
+                                              
+  
+)) %>% dplyr::select(class_num) %>% pull()
+
+test <- biopsy[-rand_sel,]
+
+Y_test=test %>% mutate(class_num =case_when(class=='benign'~0,
+                                              class=='malignant'~1
+                                              
+  
+)) %>% dplyr::select(class_num) %>% pull()
+
+
+```
+
+```{r}
+log_mod1 <- glm(class ~ ., data = train, family = 'binomial')
+```
+
+```{r}
+library(ROCR)
+
+phat3 <- predict(log_mod1, test, 'response')
+
+
+yhat3 <- ifelse(phat3 >= 0.5, 1, 0)
+yhat3
+
+pred <- prediction(phat3, Y_test)
+perf  <- performance(pred, 'f')
+
+plot(perf, colorize = FALSE, col = 'black')
+lines(c(0,1), c(0,1), col = 'gray', lty = 4)
+
+```
+
+```{r}
+auc <- performance(pred, measure = 'auc')@y.values[[1]]
+round(auc,4)
+```
+
+```{r}
+test_ts=performance(pred, measure = 'f')@x.values[[1]]
+test_fvals=performance(pred, measure = 'f')@y.values[[1]]
+best_f1=max(test_fvals[!is.na(test_fvals)])
+
+best_indx=which(test_fvals==best_f1)
+
+best_ts=test_ts[best_indx]
+
+round(best_ts,4);round(best_f1,3)
+
+```
+
+```{r}
+#15
+library(MASS)
+data(biopsy)
+attach(biopsy)
+biopsy <- na.omit(biopsy)[-1]
+
+set.seed(5076)
+rand_sel <- sample(nrow(biopsy), 0.7*nrow(biopsy))
+train <- biopsy[rand_sel,]
+test <- biopsy[-rand_sel,]
+
+log_mod1 <- glm(class ~ ., data = train, family = 'binomial')
+
+summary(log_mod1)
+```
+
+```{r}
+train_pred=predict(log_mod1)
+train_pred_yhat=ifelse(train_pred>=0.5,1,0)
+
+features=names(test)
+
+test_pred=predict(log_mod1,newdata=test)
+test_pred_yhat=ifelse(test_pred>=0.5,1,0)
+
+train$yhat=train_pred_yhat
+train$class_num=as.numeric(train$class)-1
+
+train_matches_cnt=train %>% filter(yhat!=class_num) %>% count();train_matches_cnt
+
+err_rate=train_matches_cnt/nrow(train)
+
+round(err_rate,3)
+
+test$yhat=test_pred_yhat
+test$class_num=as.numeric(test$class)-1
+
+test_matches_cnt=test %>% filter(yhat!=class_num) %>% count();test_matches_cnt
+
+
+test_err_rate=test_matches_cnt/nrow(test)
+
+round(test_err_rate,3)
+
+
+```
+
+```{r}
+
+```

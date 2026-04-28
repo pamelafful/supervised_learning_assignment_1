@@ -213,9 +213,8 @@ test_predictions=predict(all_feat_model,newdata=new_data)
 
 ```{r,test_mse,eval=TRUE,echo=FALSE}
 
-y_true=test_data$medv
 mse_func=function(ytrue,y_pred){
-  errors=y_true-y_pred
+  errors=ytrue-y_pred
   mse=mean(errors**2)
   return(mse)
 }
