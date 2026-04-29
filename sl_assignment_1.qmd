@@ -53,6 +53,10 @@ boston_data=read.csv("boston.csv")
 
 # Exploratory Data Analysis
 
+For the sake of data and analysis completeness, EDA is conducted on the entire boston dataset.
+
+**Data Attributes**
+
 ```{r, dtypes,echo=FALSE,eval=TRUE}
 #| echo: false
 
@@ -65,11 +69,11 @@ kable(data.frame(row_count=nrow(boston_data) , column_count=ncol(boston_data)),
 
 ```
 
-```{r,na_count_per_col,echo=FALSE,eval=TRUE}
+```{r,var_summary,echo=F,eval=T}
 
 col_types = sapply(boston_data, class)
 
-col_types_df = data.frame(column = names(col_types), DataType = as.character(col_types))
+col_types_df = data.frame(column = names(col_types), datatype = as.character(col_types))
 
 #kable(col_types_df,caption = "boston data column data types")
 
@@ -79,49 +83,118 @@ na_cnt=data.frame(colSums(is.na(boston_data))) %>%
   rename_with(~ col)
 
 
+summary(boston_data)
 
+col_types=left_join(col_types_df,na_cnt,by='column') %>% rename(feature='column')
 
-kable(left_join(col_types_df,na_cnt,by='column'),caption='Boston Data Column Attributes')
+feat_mins=unname(sapply(boston_data,min))
+feat_q1=sapply(boston_data, quantile, probs = 0.25, na.rm = TRUE)
+feat_mean=sapply(boston_data, mean)
+feat_median=sapply(boston_data, quantile, probs = 0.50, na.rm = TRUE)
+feat_q75=sapply(boston_data, quantile, probs = 0.75, na.rm = TRUE)
+feat_max=sapply(boston_data,max)
+feat_var=sapply(boston_data,var)
 
+variable_summ=data.frame(feature=names(boston_data), 
+                         `min`=unname(sapply(boston_data,min)),
+                         q25=unname(feat_q1),
+                         `mean`=unname(feat_mean),
+                         `meadian`=unname(feat_median),
+                         q75=unname(feat_q75),
+                          `max`=unname(feat_max),
+                         `variance`=round(unname(feat_var),2)
+                         
+                         )
+
+variable_summ=left_join(variable_summ,col_types,by='feature')
+
+kable(variable_summ,caption='Boston Data Data Summary')
 
 ```
+
+The complete data set contains 506 observations across 13 columns. The data is complete, with no null values, and all columns are registered as numeric. **Tax (28404), age (792), and zn (543)** display the greatest variance across the features, whilst **nox (0.01) and rm (0.49)** show the least variance across their respective values.
+
+```{r,eval=FALSE,echo=F}
+variable_summ %>% arrange(variance) %>%
+  dplyr::select(feature,variance)
+```
+
+**Median House Value Distributions**
 
 ```{r target_val_dist, eval=TRUE, echo=FALSE}
 
 boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
   ggplot(aes(x=medv) ) +
-  geom_boxplot() +
-  labs(title = "distribution of median house values",x='median house value')+
+  geom_histogram(fill='steelblue') +
+  labs(title = "Distribution of median house values",x='median house value')+
   theme_minimal()
+
 
 
 
 ```
 
-boston_data
-
-```{r,chas_dist}
+```{r,chas_dist,echo=FALSE,eval=TRUE}
 
 boston_data %>% group_by(chas) %>% 
-  summarize(row_cnt=length(medv))
-```
-
-```{r feat_corr, eval=TRUE, echo=FALSE}
-#| message: false
-#| warning: false
-#| fig-height: 12
-#| fig-width: 14
-
-# comeback and make this look better
-# feat=c("crim",    "zn"      "indus"   "chas"    "nox"     "rm"      "age"     "dis"     "rad"     "tax"     "ptratio" "lstat"   "medv" )
-
-boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
-  ggpairs(columns=1:13,mapping = aes(color = chas) ) +
-  labs(title = "Feature Pairwise Plot")+
+  
+ summarize(row_cnt=length(medv)) %>% 
+  mutate(chas=factor(chas,levels=c(0,1))) %>% 
+    ggplot(aes(x=chas,y=row_cnt,group=1) ) +
+  geom_col(fill = "steelblue") +
+  labs(title = "count of observations by chas factor variable",x='chas',y='#observations')+
   theme_minimal()
 ```
 
-```{r,corr}
+The data data is imbalanced, with more observations for the chas class=0.
+
+```{r,medv,echo=FALSE,eval=TRUE}
+
+
+ggplotly(boston_data %>%
+  mutate(chas=factor(chas,levels=c(0,1))) %>% 
+    ggplot(aes(x=chas,y=medv,fill = chas) ) +
+  geom_boxplot() +
+  labs(title = "Distribution of Median House Value Grouped By Chas",x='chas',y='median value')+
+  theme_minimal())
+```
+
+The median house value for observations with chas=0 is slightly higher at 23.3K, and the observations in this group skew towards higher values, in contrast to the distribution of the chas=1 observations, which is relatively more balanced around the median. Despite the difference in distributions, the two box plots show some overlap, which could indicate that the difference in means of these two groups may not be statistically significant.
+
+```{r,rad_index_dist,echo=FALSE,eval=TRUE}
+
+boston_data %>%
+  mutate(rad=factor(rad,levels=(sort(unique(boston_data$rad)) ))) %>% 
+  group_by(rad) %>% 
+  summarize(row_cnt=length(medv)) %>% 
+  ggplot(aes(x=rad,y=row_cnt) ) +
+  geom_col(fill ='steelblue') +
+  labs(title = "Distribution of Median House Value Grouped By Rad Index",x='rad index',y='#observations')+
+  theme_minimal()
+```
+
+Most observations are contained with the rad values= 4,5 and 24
+
+```{r,med_val_index,echo=FALSE,eval=TRUE}
+
+boston_data %>%
+  mutate(rad=factor(rad,levels=(sort(unique(boston_data$rad)) ))) %>% 
+  ggplot(aes(x=rad,y=medv,fill = rad) ) +
+  geom_boxplot() +
+  labs(title = "Distribution of Median House Value Grouped By Rad Index",x='rad index',y='median value')+
+  theme_minimal()
+  
+
+```
+
+Grouping house value distributions by the RAD index value shows that median house values do not consistently increase or decrease with changes in the rad index. Observations with a rad value of 24 display the lowest house values among the index groups.
+
+**Feature Correlations**
+
+```{r,corr,eval=TRUE, echo=FALSE}
+#| label: fig-heatmap
+#| fig-cap: "Feature Correlations"
+
 library(reshape2)
 corr_data=boston_data %>% mutate(chas=factor(chas)) %>% 
   dplyr::select(where(is.numeric)) %>% 
@@ -140,8 +213,29 @@ geom_tile() +
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1))
 
 
-  
 ```
+
+Features, **rm and lstat** display the largest correlation, in absolute value, with medv. the rad and tax variables are most most highly correlated variables amongst features- signaling a strong possibility of multicollinearity \*this could what is causing our variance to blow up-talk about the implications
+
+```{r feat_corr, eval=TRUE, echo=FALSE}
+#| message: false
+#| warning: false
+#| label: fig-pairplot
+#| fig-cap: "Feature Pairplot"
+#| fig-height: 12
+#| fig-width: 15
+
+# comeback and make this look better
+# feat=c("crim",    "zn"      "indus"   "chas"    "nox"     "rm"      "age"     "dis"     "rad"     "tax"     "ptratio" "lstat"   "medv" )
+
+boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
+  ggpairs(columns=1:13,mapping = aes(color = chas) ) +
+  labs(title = "Feature Pairwise Plot")+
+  theme_minimal()+
+  theme(legend.position = "right")
+```
+
+Analysing the significance of the the correlations, the correlations between the response variable, medv, and all the other numeric features look to be significant at 5%.
 
 # Model Building
 
@@ -550,8 +644,7 @@ for(i in 2:length(vars_final)){
 
 int_feats=c('medv')
 for(i in features){
-
-#boston_data=boston_data %>% mutate(!!paste0(i, "_chas") := .data[[i]] * chas)
+boston_data=boston_data %>% mutate(!!paste0(i, "_chas") := .data[[i]] * chas)
 
 int_feats=c(int_feats,paste0(i, "_chas"))
  
@@ -584,17 +677,16 @@ boston_data %>% dplyr::select(any_of(int_feats)) %>%
 
 ```
 
-Median House Values, medv, shows the highest correlation with the zn_chas interaction variable. Look at and this correlation also happens to be statistically significant at 5%.
+Median House Values, medv, shows the highest correlation with the rm_chas interaction variable. Look at and this correlation also happens to be statistically significant at 5%.
 
 ```{r,int_regress}
 
 # best performing regression =all_feat regression
 
-int_training_data= boston_data_training %>% mutate(zn_chas=chas*zn)
-int_training_data
+int_training_data= boston_data_training %>% mutate(rm_chas=chas*rm)
 int_features=features
-int_features[length(int_features)+1]='zn_chas'
-int_tr_d=boston_data_training %>% dplyr::select( any_of(c(int_features,'medv')))
+int_features[length(int_features)+1]='rm_chas'
+int_tr_d=int_training_data %>% dplyr::select( any_of(c(int_features,'medv')))
 
 all_feat_with_int_model=lm(medv ~ ., data=int_tr_d)
 summary(all_feat_with_int_model)
@@ -603,19 +695,19 @@ summary(all_feat_with_int_model)
 
 ```
 
-zn_chas did not turn out to be significant- but I'm not sure if this is as a result of the data imbalance ( lot more chas=0 than 1) ?
+rm_chas did not turn out to be significant- but I'm not sure if this is as a result of the data imbalance (lot more chas=0 than 1) ?
 
 ```{r,int_mse}
 int_test_data=test_data
-int_test_data$zn_chas=int_test_data$chas*int_test_data$zn
-int_test_d=int_test_data %>% dplyr::select(any_of(c(features,'zn_chas')))
+int_test_data$rm_chas=int_test_data$chas*int_test_data$rm
+int_test_d=int_test_data %>% dplyr::select(any_of(c(features,'rm_chas')))
 
 int_test_pred=predict(all_feat_with_int_model,newdata=int_test_d)
 ```
 
 ```{r,int_mse}
 
-mse_func(int_test_data$medv,int_test_pred);16.6422	# not better, does not improve model
+mse_func(int_test_data$medv,int_test_pred);16.6422	# oos mse improves, although the addition of the int variable is not significant?
 
 ```
 
