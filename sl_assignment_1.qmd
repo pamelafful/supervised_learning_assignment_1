@@ -1,10 +1,18 @@
 ---
-title: "SL Assignment 1"
+title: "Supervised Learning Assignment 1"
 author: "Pamela Afful"
 format: 
     pdf:
       fig-pos: 'H'
+
 editor: visual
+titlepage: "UCTLogo.jpg"
+
+execute: 
+  cache: false
+  warning: false
+  message: false
+  echo: false
 ---
 
 ```{r libs, eval=TRUE, echo=FALSE}
@@ -42,14 +50,20 @@ library(caret)
 library(MASS)
 library(dplyr)
 library(interactions)
+library(kableExtra)
+library(patchwork) 
 ```
 
 ```{r, data_read,echo=FALSE,eval=TRUE}
 boston_data_training=read.csv('my_boston.csv')
 boston_data=read.csv("boston.csv")
 
-#View(boston_data)
+
 ```
+
+# Introduction
+
+This reporrt analyses and models median house proces across a range of features inlcluding taxes, property and crime rates. The median house value is regressed against these features using several regression models, namely staight linear regression using all features, backwise step regression, ridge regression and lasso regression. The out of sample mean sqaured errrs are assesed across the the results of these models. The inclusion of an interaction variables, chas_rm, is added to the best performing model\*
 
 # Exploratory Data Analysis
 
@@ -57,10 +71,9 @@ For the sake of data and analysis completeness, EDA is conducted on the entire b
 
 **Data Attributes**
 
-```{r, dtypes,echo=FALSE,eval=TRUE}
-#| echo: false
-
-
+```{r data_atrr, eval=TRUE, echo=FALSE}
+#| message: false
+#| warning: false
 
 
 kable(data.frame(row_count=nrow(boston_data) , column_count=ncol(boston_data)),
@@ -69,7 +82,9 @@ kable(data.frame(row_count=nrow(boston_data) , column_count=ncol(boston_data)),
 
 ```
 
-```{r,var_summary,echo=F,eval=T}
+```{r var_summary, eval=T, echo=F}
+#| message: false
+#| warning: false
 
 col_types = sapply(boston_data, class)
 
@@ -82,8 +97,6 @@ na_cnt=data.frame(colSums(is.na(boston_data))) %>%
   rownames_to_column("old_index") %>% 
   rename_with(~ col)
 
-
-summary(boston_data)
 
 col_types=left_join(col_types_df,na_cnt,by='column') %>% rename(feature='column')
 
@@ -102,19 +115,19 @@ variable_summ=data.frame(feature=names(boston_data),
                          `meadian`=unname(feat_median),
                          q75=unname(feat_q75),
                           `max`=unname(feat_max),
-                         `variance`=round(unname(feat_var),2)
+                         `sd`=round(unname(feat_var),2)**0.5
                          
                          )
 
 variable_summ=left_join(variable_summ,col_types,by='feature')
 
-kable(variable_summ,caption='Boston Data Data Summary')
+kable(variable_summ,caption='Boston Data Data Summary') %>% kable_styling(latex_options = "scale_down")
 
 ```
 
 The complete data set contains 506 observations across 13 columns. The data is complete, with no null values, and all columns are registered as numeric. **Tax (28404), age (792), and zn (543)** display the greatest variance across the features, whilst **nox (0.01) and rm (0.49)** show the least variance across their respective values.
 
-```{r,eval=FALSE,echo=F}
+```{r feat_var,eval=FALSE,echo=F}
 variable_summ %>% arrange(variance) %>%
   dplyr::select(feature,variance)
 ```
@@ -122,6 +135,10 @@ variable_summ %>% arrange(variance) %>%
 **Median House Value Distributions**
 
 ```{r target_val_dist, eval=TRUE, echo=FALSE}
+#| message: false
+#| warning: false
+#| label: fig-medv_hist
+#| fig-cap: "Median House Value Distribution"
 
 boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
   ggplot(aes(x=medv) ) +
@@ -134,10 +151,13 @@ boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor
 
 ```
 
-```{r,chas_dist,echo=FALSE,eval=TRUE}
+```{r chas_dist, eval=TRUE, echo=FALSE}
+#| message: false
+#| warning: false
+#| label: fig-chas_obs
+#| fig-cap: "Observation Count Chas Factor"
 
 boston_data %>% group_by(chas) %>% 
-  
  summarize(row_cnt=length(medv)) %>% 
   mutate(chas=factor(chas,levels=c(0,1))) %>% 
     ggplot(aes(x=chas,y=row_cnt,group=1) ) +
@@ -148,8 +168,11 @@ boston_data %>% group_by(chas) %>%
 
 The data data is imbalanced, with more observations for the chas class=0.
 
-```{r,medv,echo=FALSE,eval=TRUE}
-
+```{r medv, eval=TRUE, echo=FALSE}
+#| message: false
+#| warning: false
+#| label: fig-chas_box
+#| fig-cap: "Median House Value Distribution,Grouped by Chas"
 
 ggplotly(boston_data %>%
   mutate(chas=factor(chas,levels=c(0,1))) %>% 
@@ -157,11 +180,18 @@ ggplotly(boston_data %>%
   geom_boxplot() +
   labs(title = "Distribution of Median House Value Grouped By Chas",x='chas',y='median value')+
   theme_minimal())
+
+
 ```
 
 The median house value for observations with chas=0 is slightly higher at 23.3K, and the observations in this group skew towards higher values, in contrast to the distribution of the chas=1 observations, which is relatively more balanced around the median. Despite the difference in distributions, the two box plots show some overlap, which could indicate that the difference in means of these two groups may not be statistically significant.
 
-```{r,rad_index_dist,echo=FALSE,eval=TRUE}
+```{r rad_index_dist, eval=TRUE, echo=FALSE}
+#| message: false
+#| warning: false
+#| label: fig-radial_index_obs
+#| fig-cap: "Observation Count Per Radial Accessibility Index"
+
 
 boston_data %>%
   mutate(rad=factor(rad,levels=(sort(unique(boston_data$rad)) ))) %>% 
@@ -177,6 +207,9 @@ Most observations are contained with the rad values= 4,5 and 24
 
 ```{r,med_val_index,echo=FALSE,eval=TRUE}
 
+#| label: fig-radial_index_box_plot
+#| fig-cap: "Distribution of Median House Values by Radial Accesibility Index"
+
 boston_data %>%
   mutate(rad=factor(rad,levels=(sort(unique(boston_data$rad)) ))) %>% 
   ggplot(aes(x=rad,y=medv,fill = rad) ) +
@@ -191,7 +224,8 @@ Grouping house value distributions by the RAD index value shows that median hous
 
 **Feature Correlations**
 
-```{r,corr,eval=TRUE, echo=FALSE}
+```{r,eval=TRUE, echo=FALSE}
+
 #| label: fig-heatmap
 #| fig-cap: "Feature Correlations"
 
@@ -217,7 +251,7 @@ geom_tile() +
 
 Features, **rm and lstat** display the largest correlation, in absolute value, with medv. the rad and tax variables are most most highly correlated variables amongst features- signaling a strong possibility of multicollinearity \*this could what is causing our variance to blow up-talk about the implications
 
-```{r feat_corr, eval=TRUE, echo=FALSE}
+```{r, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
 #| label: fig-pairplot
@@ -235,12 +269,11 @@ boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor
   theme(legend.position = "right")
 ```
 
-Analysing the significance of the the correlations, the correlations between the response variable, medv, and all the other numeric features look to be significant at 5%.
+Analyzing the significance of the the correlations, the correlations between the response variable, medv, and all the other numeric features look to be significant at 5%.
 
 # Model Building
 
-```{r,lm_fit,eval=TRUE, echo=FALSE}
-
+```{r lm_fit, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
 
@@ -259,31 +292,27 @@ tr_d=boston_data_training %>%
 
 
 all_feat_model=lm(medv ~ ., data=tr_d)
-summary(all_feat_model)
-  
-# modelsummary(
-#   all_feat_model,
-#   stars = TRUE,
-#   title = "Regression Results- All Features",
-#   output = "latex" 
-# )
 
 
-# all_feat_model %>%
-#   tbl_regression() %>%  
-# add_glance_source_note() %>%
-#   add_global_p()
+stargazer(all_feat_model, 
+          type='text', 
+          digits = 2, 
+          title = 'Baseline Model:All Feature Regression Summary', 
+          style = 'qje')
+
 ```
 
-Model Performance
+Model Performance:
 
--   The model shows a relatively good fit to the training data, with \~73% of the variation in the data, captured/explained by the model
+-   The model shows a relatively good fit to the training data, with \~74% of the variation in the data, explained by the model
 
--   10 out of 12 (check again) are significant at the 5% level
+-   10 out of the 12 feature coefficients (excluding the intercept) are statistically different from 0 at at lest the 10% level, with 9 of these significant at the 1% level
 
--   Comeback\*
+-   Nitrogen Oxide (nox) levelsshow the biggest marginal change , in absolute value, to median house values, medv, with an estimated negative change of -20.6K in estimated average houspe values per one unit increase in nox levels.
 
-**Prediction of test dataset**
+-   The F statistic is also significant at the 1% level, indicating that the coefficients of the model are jointly statistically different from 0.
+
+**Prediction of test data set**
 
 ```{r,test_pred,eval=TRUE,echo=FALSE}
 
@@ -319,6 +348,7 @@ mse_func=function(ytrue,y_pred){
   return(mse)
 }
 
+y_true=test_data$medv
 
 mse_base=mse_func(y_true,test_predictions)
 
@@ -326,17 +356,28 @@ aic_base=AIC(all_feat_model,k=2) # use default value
 bic_base=BIC(all_feat_model)
 
 
-mse_func(y_true,test_predictions)
-bic_base
+bl_mse=data.frame(`baseline mse`=round(mse_func(y_true,test_predictions),2))
+kable(bl_mse,caption='Baseline Test MSE')
+
 ```
+
+The out-of-sample (OOO) MSE for the baseline model is at 16.64K, that is, on average the baseline model's home values predictions are expected to deviate from the actual by this value, which is greater that the standard deviation of median house values of \~9.2.
 
 # Model Improvement
 
 **Backwards Step wise Variable Selection**
 
+Method:
+
+1.  Start off with the baseline model: regress response variable against all features
+2.  Iteratively remove one feature, retrain the model and store both the AIC and BIC scores for each retrained model.
+
 ref website:<https://alain-vandormael.netlify.app/post/varselect/#:~:text=Stepwise%20regression,next%20deletion%20increases%20the%20AIC.>
 
 ```{r,bk_step,echo=FALSE,eval=TRUE}
+
+#| label: fig-barplot
+#| fig-cap: "AIC and BIC curves per Backwise Steo Regression Iteration"
 
 # Backwides Stepwise Regression
 # incrementally decrease the number of features from the regression 
@@ -349,7 +390,7 @@ model_feat=c()
 aics=c()
 bics=c()
 
-set.seed(123)
+set.seed(718)
 
 # MANUAL FOR LOOP
 
@@ -370,36 +411,68 @@ for(i in 1:length(features)-1  ){
   bics=c(bics,bic)
 }
 
+models = list()
 mod0=lm(medv ~1 , data=tr_d) 
-bk_model=step(all_feat_model,direction='backward',scope=formula(mod0), trace = 0)
-
-# Using in-built packages
-# Mass Package
-# Implemetation
-# Using with CV
-# Using AIC and the discriminating metric
-# lower bound- intercept regression
-# train_set = trainControl(method="cv", number=10) # cv
-# cv_mod_feat_sel = train(medv ~ ., data=tr_d,  scope = formula(mod0),method="lmStepAIC", direction="backward", trace=FALSE, trControl=train_set,preProcess='scale') #use CV to train using CV using the stepAIC method
-# 
-# cv_mod_feat_sel$finalModel;AIC(cv_mod_feat_sel$finalModel)
-# 
-# bk_feat_model=stepAIC(all_feat_model, direction = "backward", scope = formula(mod0), trace=FALSE) # bk selection model
-# 
-# 
-#bk_feat_model$anova
-
-# coef(bk_feat_model) # 10/13 coefficients/features elected from bk elimination
-# AIC(bk_feat_model) # best AIC score 
-# bk_feat_model$anova
+bk_model=stepAIC(all_feat_model,direction='backward',scope=formula(mod0), trace =0,keep=function(model, AIC) {
+    models[[length(models) + 1]] <<- model # keep/store all intermediate models as well as their AIC scores
+    return(AIC) }
+    )
 
 
 
+# Store into a dataframe
 
+results <- data.frame(
+  Step = seq_along(models),
+  AIC = sapply(models, AIC),
+  BIC = sapply(models, BIC),
+  Variables = sapply(models, function(m) {
+    paste(names(coef(m))[-1], collapse = ", ")
+  })
+)
 
+p=results %>% mutate(Step=factor(Step,levels=c(1,2,3))) %>% 
+  ggplot(aes(x = Step,group=1)) +
+  geom_line(aes(y = AIC, color = "AIC")) +
+  geom_point(aes(y = AIC, color = "AIC")) +
+  geom_line(aes(y = BIC, color = "BIC")) +
+  geom_point(aes(y = BIC, color = "BIC")) +
+  scale_color_manual(
+    name = "Metric",
+    values = c("AIC" = "red", "BIC" = "blue")
+  ) +
+  labs(
+    title = "AIC and BIC Scores per Backward Regression Iteration",
+    x = "Iteration Step",
+    y = "IC Score"
+  ) +
+  theme_minimal()
 
+ggplotly(p)
 
 ```
+
+```{r bk_summ, eval=TRUE, echo=FALSE}
+#| message: false
+#| warning: false
+
+stargazer(bk_model, 
+          type='text', 
+          digits = 2, 
+          title = 'Backwise Step Best Model Regression Summary ', 
+          style = 'qje')
+
+```
+
+Backward Step Regression Results:
+
+1.  The step model reached the lowest AIC (\~2408) and BIC(\~2456) after 3 iterations with 10 out of the 12 features retained.
+
+2.  Retained Features: **crime, zn, chas, nox, rm, dis, rad, tax, ptratio and lstat** with the **age** and **indus** variables removed**.** All of these are still statistically significant at least up to the 10% level.
+
+3.  All regressors also maintain their sign with very little changes to their maginal effects with respect to the response variable.
+
+4.  R square (\~74%) and the F statistic (significant at 1%) are still comparable and in the same region as the baseline model
 
 ```{r,plot_bk_metrics,echo=FALSE,eval=F}
 
@@ -447,6 +520,8 @@ mse_plot=backwards_feat_sel_metrics %>%
 aic_plot/bic_plot/mse_plot
 ```
 
+**Ridge Regression**
+
 ```{r,ridge_regr,eval=TRUE,echo=FALSE}
 
 regressors= boston_data_training %>% mutate(chas=factor(chas,levels=c(0,1)))%>% dplyr::select( all_of( c('medv',features)))
@@ -489,7 +564,7 @@ pivot_longer(info_criteria_df,
 
 Best lambda val=0 for AIC consideration
 
-```{r,ridge_regr,eval=TRUE,echo=FALSE}
+```{r,ridge_regr_coeff,eval=TRUE,echo=FALSE}
 x=data.matrix(boston_data_training[, features])
 y=boston_data_training$medv
 cv_model_ridge=cv.glmnet(x, y, alpha = 0) # using kfolds, k=10
@@ -697,7 +772,7 @@ summary(all_feat_with_int_model)
 
 rm_chas did not turn out to be significant- but I'm not sure if this is as a result of the data imbalance (lot more chas=0 than 1) ?
 
-```{r,int_mse}
+```{r,int_mse,echo=F,eval=T}
 int_test_data=test_data
 int_test_data$rm_chas=int_test_data$chas*int_test_data$rm
 int_test_d=int_test_data %>% dplyr::select(any_of(c(features,'rm_chas')))
@@ -705,7 +780,7 @@ int_test_d=int_test_data %>% dplyr::select(any_of(c(features,'rm_chas')))
 int_test_pred=predict(all_feat_with_int_model,newdata=int_test_d)
 ```
 
-```{r,int_mse}
+```{r,int_mse_2, echo=FALSE,eval=T}
 
 mse_func(int_test_data$medv,int_test_pred);16.6422	# oos mse improves, although the addition of the int variable is not significant?
 
