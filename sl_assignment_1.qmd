@@ -98,6 +98,14 @@ boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor
 
 ```
 
+boston_data
+
+```{r,chas_dist}
+
+boston_data %>% group_by(chas) %>% 
+  summarize(row_cnt=length(medv))
+```
+
 ```{r feat_corr, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
@@ -150,8 +158,6 @@ boston_data_training=as.tibble(boston_data_training)
 # Every feaure except the chas feature
 scaled_trd=data.frame(scale(boston_data_training %>% dplyr::select(any_of(features[features!='chas']))))
 
-scaled_trd$chas=boston_data_training$chas
-scaled_trd$medv=boston_data_training$medv
 
 tr_d=boston_data_training %>% 
     mutate(chas=factor(chas,levels=c(0,1))) 
@@ -218,6 +224,7 @@ mse_func=function(ytrue,y_pred){
   mse=mean(errors**2)
   return(mse)
 }
+
 
 mse_base=mse_func(y_true,test_predictions)
 
@@ -465,7 +472,7 @@ kable(test_mses_df,caption = 'Model MSE Metrics')
 
 <https://statisticsbyjim.com/regression/interaction-effects/>
 
-```{r, interaction,eval=TRUE,echo=F}
+```{r, interaction,eval=F,echo=F}
 
 # find an article to support this
 
@@ -502,7 +509,7 @@ coeff=coeff[-chas_ind]
 
 
 
-for(i in 2:length( all_feat_model$coefficients)){
+for(i in 2:length(vars_final)){
   var_name=vars_final[i]
   #i=2
   x_df =boston_data_training %>%
@@ -530,5 +537,106 @@ for(i in 2:length( all_feat_model$coefficients)){
 }
 # Roupgly the difference between the two groups shoulf form a straight line which we could interprete as either an interaction exists or not
 
+
+```
+
+```{r int_corrs}
+#| message: false
+#| warning: false
+#| fig-height: 12
+#| fig-width: 14
+# iteratively add interactition variables
+# Create them with chas
+
+int_feats=c('medv')
+for(i in features){
+
+#boston_data=boston_data %>% mutate(!!paste0(i, "_chas") := .data[[i]] * chas)
+
+int_feats=c(int_feats,paste0(i, "_chas"))
+ 
+}
+
+
+
+# Look at which interactions have strongest correlation with medv
+
+corr_data=boston_data %>% mutate(chas=factor(chas)) %>% 
+  dplyr::select(any_of(int_feats)) %>% 
+  cor(use = "pairwise.complete.obs")
+
+
+# corr_data_df=melt(corr_data)
+# 
+# corr_data_df %>% ggplot(aes(x=Var2, y=Var1, fill=value))+
+# geom_tile() +
+#   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+#                        midpoint = 0, limit = c(-1,1), space = "Lab", 
+#                        name="Pearson\nCorrelation") +
+#   geom_text(aes(label = round(value, 2)), color = "black")+
+#   labs(title = "Feature Correlation Matrix",x='Feature',y='Feature')+
+#   theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1))
+
+boston_data %>% dplyr::select(any_of(int_feats)) %>% 
+  ggpairs(columns=1:length(int_feats)) +
+  labs(title = " and Feature Pairwise Plot")+
+  theme_minimal()
+
+```
+
+Median House Values, medv, shows the highest correlation with the zn_chas interaction variable. Look at and this correlation also happens to be statistically significant at 5%.
+
+```{r,int_regress}
+
+# best performing regression =all_feat regression
+
+int_training_data= boston_data_training %>% mutate(zn_chas=chas*zn)
+int_training_data
+int_features=features
+int_features[length(int_features)+1]='zn_chas'
+int_tr_d=boston_data_training %>% dplyr::select( any_of(c(int_features,'medv')))
+
+all_feat_with_int_model=lm(medv ~ ., data=int_tr_d)
+summary(all_feat_with_int_model)
+
+
+
+```
+
+zn_chas did not turn out to be significant- but I'm not sure if this is as a result of the data imbalance ( lot more chas=0 than 1) ?
+
+```{r,int_mse}
+int_test_data=test_data
+int_test_data$zn_chas=int_test_data$chas*int_test_data$zn
+int_test_d=int_test_data %>% dplyr::select(any_of(c(features,'zn_chas')))
+
+int_test_pred=predict(all_feat_with_int_model,newdata=int_test_d)
+```
+
+```{r,int_mse}
+
+mse_func(int_test_data$medv,int_test_pred);16.6422	# not better, does not improve model
+
+```
+
+# Residual Diagnostics
+
+```{r,train_errors_hist,echo=F,eval=T}
+errors=resid(all_feat_model)
+test_err=test_data$medv-test_predictions
+hist(errors,main='Distribution of Train Errors')
+hist(test_err,main='Distribution of Test Errors')
+
+
+```
+
+```{r,errors_qq,echo=F,eval=T}
+
+plot(all_feat_model, which = 2) # definately not normal 
+
+```
+
+```{r,err_homo,eval=T,echo=F}
+plot(all_feat_model, which = 3) # NOT HOMOSCEDASTIC!!!
 
 ```
