@@ -68,7 +68,7 @@ This reporrt analyses and models median house proces across a range of features 
 
 # Exploratory Data Analysis
 
-For the sake of data and analysis completeness, EDA is conducted on the entire boston dataset.
+For the sake of data and analysis completeness, EDA is conducted on the entire Boston dataset.
 
 **Data Attributes**
 
@@ -643,10 +643,9 @@ lambda_1se <- -log(cv_model_ridge$lambda.1se)
 min_lam_index=which(cv_model_ridge$lambda==cv_model_ridge$lambda.min)
 min_lam_cv_val=cv_model_ridge$cvm[min_lam_index]
 
+
 se_lambda_index=which(cv_model_ridge$lambda==cv_model_ridge$lambda.1se)
 se_lam_cv_val=cv_model_ridge$cvm[se_lambda_index]
-
-
 #code below for creatinG CV error plot
 
 #plot(cv_model_ridge) # CV MSE for different regularization values
@@ -675,57 +674,6 @@ se_lam_cv_val=cv_model_ridge$cvm[se_lambda_index]
 # title(main = "Ridge Regression Cross-Validation Error",line = 2.5)
 
 
-```
-
-```{r pred_mse__, eval=F, echo=F}
-# #| message: true
-# #| warning: true
-# 
-# test_data_feat=test_data %>% mutate(chas=factor(chas,levels=c(0,1)))%>% 
-#   dplyr::select(all_of(features))
-# 
-# test_data_feat_x=data.matrix(test_data[, features])
-# y_test_true=as.vector(test_data %>% dplyr::select(medv) %>% pull())
-# 
-# 
-# bk_test_predictions=predict(bk_model,newdata=test_data_feat)
-# bk_test_predictions=as.vector(bk_test_predictions)
-# lasso_test_predictions=as.vector(unname(predict(cv_model_lasso,newx=test_data_feat_x)))
-# ridge_test_predictions=as.vector(unname(predict(cv_model_ridge,newx=test_data_feat_x)))
-# 
-# all_test_predictions=data.frame(backward_selection=bk_test_predictions,
-#                            ridge_predictions=ridge_test_predictions,
-#                            lasso_predictions=lasso_test_predictions,
-#                            y_true=y_test_true,
-#                            pred_id=1:106
-#                            )
-# 
-# test_mses=c(mse_base)
-# 
-# 
-# for(pred in head(names(all_test_predictions),-1) ){
-#   model_pred=all_test_predictions %>% dplyr::select(any_of(pred)) %>% pull()
-#   test_mse_i=mse_func(y_test_true,model_pred)
-#   test_mses=c(test_mses,test_mse_i)
-#   
-# }
-#   
-# test_mses # add plot of ytrue vs predictions from the 
-# 
-# all_test_predictions %>% ggplot(aes(x=pred_id)) + 
-#   geom_line(aes(y = y_true, color = "ytrue"))+
-#   geom_line(aes(y = backward_selection, color = "Backward Selection y_hat"))+
-#   geom_line(aes(y = ridge_predictions, color = "Ridge y_hat"))+
-#   geom_line(aes(y = ridge_predictions, color = "Lasso y_hat"))+
-#   labs(title = "Test Data Prediction Comparison",x='observation index',y='y')+
-#   theme_minimal()
-# 
-#   
-# test_mses_df=data.frame(metric=c('MSE'),all_features=test_mses[1],backwise_step=test_mses[2]                             ,ridge=test_mses[3],lasso=test_mses[3]
-#                         )
-# 
-# rownames(test_mses_df) <- test_mses_df$MSE
-# kable(test_mses_df,caption = 'Model MSE Metrics')
 ```
 
 ```{r, ridge_regre_coeff, echo=FALSE, eval=TRUE}
@@ -772,10 +720,7 @@ se_lam_cv_val=cv_model_lasso$cvm[se_lambda_index]
 #       xlim = c(-2,5),
 #       ylab='CV MSE'
 #  )
-
-
-
-
+# 
 # text(lambda_min+0.08 , max(cv_model_lasso$cvm),
 #      labels = paste("min:",round(cv_model_lasso$lambda.min,2)),
 #      pos = 4, col = "red",
@@ -785,8 +730,8 @@ se_lam_cv_val=cv_model_lasso$cvm[se_lambda_index]
 #      labels = paste("1se:",round(cv_model_lasso$lambda.1se,2)),
 #      pos = 4, col = "blue",
 #      cex = 0.7)
-# 
-# 
+# # 
+# # 
 # title(main = "Lasso Regression Cross-Validation Error",line = 2.5)
 
 ```
@@ -846,11 +791,14 @@ knitr::kable(
 
 Regression Results:
 
-1.  Cross Validation MSE is minimized at $\lambda$ =0.69 with an associated CV MSE of \~25.48. The 1.se equivalent is obtained at $\lambda$=5.34 (MSE \~29.39).
-2.  The **nox** feature still maintains its position as the largest absolute marginal predictor of median house values across both ridge models, although its magnitude is reduced.
-3.  The **indus** coefficient see a change in sign from the baseline (although this feature is statistically insignificant in the baseline model).
+1.  The best regularization parametrs for the Ridge and LASSO models are reached at at $\lambda$ =0.69 (CV_MSE~min~ of \~25.48) and 0.69 ( CV_MSE~min~ \~27.9), respectively . The 1~se~ equivalent parameters for Ridge and LASSO are obtained at $\lambda$=4.86 (CV_MSE~min~ \~28.79) and $\lambda$=0.67 (CV_MSE~min~ \~27.99).
+2.   For the simplest model, LASSO~1SE~ , 7 non-zero coefficients remained in the final model; the coefficients of **zn, indus, age,** and **rad** were all pushed to zero. In particular, **zn and rad** were statistically significant in the baseline model.
+3.  The **nox** feature still maintains its position as the largest absolute marginal predictor of median house values across three out of the four models, with the rm feature having the largest marginal contribution to response variable.
+4.  In addition to a change in magnitude, some feature coefficients also show a change in sign in some of models: the **indus** coefficient also sees a change (positive to negative) in sign from the baseline in both the Ridge~1SE~ and Ridge~min~ models while the **rad** feature coefficient changes sign in the Ridge~1SE~ model (although this feature coefficient is highly penalized relative to the baseline).
 
-**Out Of Sample/ Test Data Metrics**
+**Predictions On Test Data**
+
+For both the Ridge and LASSO regressions, the 1SE models will be used to favour model simplicity and reduce the risk of over fitting; these are used to predict on the test data.
 
 ```{r pred_mse, eval=TRUE, echo=F}
 #| message: true
@@ -865,8 +813,8 @@ y_test_true=as.vector(test_data %>% dplyr::select(medv) %>% pull())
 
 bk_test_predictions=predict(bk_model,newdata=test_data_feat)
 bk_test_predictions=as.vector(bk_test_predictions)
-lasso_test_predictions=as.vector(unname(predict(cv_model_lasso,newx=test_data_feat_x)))
-ridge_test_predictions=as.vector(unname(predict(cv_model_ridge,newx=test_data_feat_x)))
+lasso_test_predictions=as.vector(unname(predict(cv_model_lasso, s='lambda.1se',newx=test_data_feat_x)))
+ridge_test_predictions=as.vector(unname(predict(cv_model_ridge, s='lambda.1se',newx=test_data_feat_x)))
 
 all_test_predictions=data.frame(backward_selection=bk_test_predictions,
                            ridge_predictions=ridge_test_predictions,
@@ -886,14 +834,21 @@ for(pred in head(names(all_test_predictions),-1) ){
 }
 
   
-test_mses_df=data.frame(metric=c('MSE'),all_features=test_mses[1],backwise_step=test_mses[2]                             ,ridge=test_mses[3],lasso=test_mses[3]
+test_mses_df=data.frame(metric=c('MSE'),
+                        all_features=test_mses[1],
+                        backwise_step=test_mses[2],
+                        ridge=test_mses[3],
+                        lasso=test_mses[4],
+                        `average across models`=mean(test_mses)
                         )
 
 rownames(test_mses_df) <- test_mses_df$MSE
 
-kable(test_mses_df,caption = 'Model MSE Metrics')
+kable(test_mses_df,caption = 'Test Data MSE Model Metrics')
 
 ```
+
+Although the test scores MSE are relatively close to each other for 3 out of the 4 models, the variable selection models fail to outperform the baseline model LASSO having the worst test mse out of the 4. \* Talk about implications of multicollinearity in conclusion
 
 ```{r pred_plots, eval=T, echo=FALSE}
 #| message: false
@@ -904,18 +859,32 @@ kable(test_mses_df,caption = 'Model MSE Metrics')
 
 ##| label: fig-predlinplot
 
-all_test_predictions %>% ggplot(aes(x=pred_id)) + 
-  geom_line(aes(y = y_true, color = "ytrue"))+
-  geom_line(aes(y = backward_selection, color = "Backward Selection y_hat"))+
-  geom_line(aes(y = ridge_predictions, color = "Ridge y_hat"))+
-  geom_line(aes(y = ridge_predictions, color = "Lasso y_hat"))+
-  labs(title = "Test Data Prediction Comparison",x='observation index',y='y')+
+all_test_predictions %>% 
+  ggplot(aes(x = pred_id)) + 
+  geom_line(aes(y = y_true, color = "ytrue")) +
+  geom_line(aes(y = backward_selection, color = "Backward Selection y_hat")) +
+  geom_line(aes(y = ridge_predictions, color = "Ridge y_hat")) +
+  geom_line(aes(y = lasso_predictions, color = "Lasso y_hat")) +
+  labs(
+    title = "Test Data Prediction Comparison",
+    x = "observation index",
+    y = "y",
+    color = NULL   
+  ) +
   theme_minimal()
 
 
 ```
 
-<https://statisticsbyjim.com/regression/interaction-effects/>
+All the model predictions show relatively good fit to the general shape of the response variable in the test data.
+
+**Inclusion of Interaction Term**
+
+Method: The **chas** feature which is a categorical variable provides an easy way of segmenting the data into two distinct groups for which partial regression curves for the individual features can be visually inspected for signs of interaction. Thus the following process is used to choose the interaction feature:
+
+1.   Create interaction terms for all features with the chas feature: $\text{Feature}_i \times \text{chas}$
+
+2.  Analyze the correlations of all these interction variables with response variable, medv. Choose the interaction with the highest, and statistically significant correlation.
 
 ```{r, interaction,eval=F,echo=F}
 
@@ -1087,3 +1056,5 @@ plot(all_feat_model, which = 3) # NOT HOMOSCEDASTIC!!!
 # Appendix {.appendix}
 
 ref website:<https://alain-vandormael.netlify.app/post/varselect/#:~:text=Stepwise%20regression,next%20deletion%20increases%20the%20AIC.>
+
+<https://statisticsbyjim.com/regression/interaction-effects/>
