@@ -145,7 +145,8 @@ variable_summ %>% arrange(variance) %>%
 ```{r target_val_dist, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
-#| label: fig-medv_hist
+
+##| label: fig-medv_hist
 
 fig1=boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
   ggplot(aes(x=medv) ) +
@@ -161,7 +162,8 @@ fig1=boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=f
 ```{r chas_dist, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
-#| label: fig-chas_obs
+
+##| label: fig-chas_obs
 
 
 fig2=boston_data %>% group_by(chas) %>% 
@@ -214,13 +216,13 @@ Most observations are contained with the rad values= 4,5 and 24
 ```{r patches1, eval=TRUE}
 #| message: false
 #| warning: false
-#| label: fig-radial_index_obs
 #| fig-cap: "Median House Value Distribution,Grouped by Chas"
-#| fig-height: 6
+#| fig-height: 5
 #| fig-width: 9
 
 
 #wrap_plots(fig1,fig2 , ncol = 2)
+##| label: fig-radial_index_obs
 
 (fig1)/(fig3+fig2)
 
@@ -241,11 +243,11 @@ fig5=boston_data %>%
 ```{r patch_2, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
-#| fig-height: 6
+#| fig-height: 5
 #| fig-width: 8
-#| label: fig-radial_index_box_plot
 #| fig-cap: "Distribution of Median House Values by Radial Accesibility Index"
 
+##| label: fig-radial_index_box_plot
 fig4/fig5
 ```
 
@@ -254,9 +256,10 @@ Grouping house value distributions by the RAD index value shows that median hous
 **Feature Correlations**
 
 ```{r,eval=TRUE, echo=FALSE}
-
 #| label: fig-heatmap
 #| fig-cap: "Feature Correlations"
+#| fig-height: 6
+#| fig-width: 10
 
 library(reshape2)
 corr_data=boston_data %>% mutate(chas=factor(chas)) %>% 
@@ -432,9 +435,9 @@ Method:
 #| warning: false
 #| fig-height: 2
 #| fig-width: 6
-#| label: fig-barplot
 #| fig-cap: "AIC and BIC curves per Backwise Steo Regression Iteration"
 
+##| label: fig-barplot
 # Backwides Stepwise Regression
 # incrementally decrease the number of features from the regression 
 # For each removal, fit the model
@@ -577,7 +580,7 @@ mse_plot=backwards_feat_sel_metrics %>%
 aic_plot/bic_plot/mse_plot
 ```
 
-**Ridge Regression**
+**Ridge and Lasso Regression**
 
 Method: Use cross validation to find the optimal regularization parameter(s) ,lambda, that produce the minimum CV MSE error during training and compare the coefficients produced by the model.
 
@@ -626,12 +629,25 @@ pivot_longer(info_criteria_df,
 #| warning: false
 #| fig-height: 3.5
 #| fig-width: 6
-#| label: fig-cvplot
 #| fig-cap: "CV MSE vs Regularization Parameter"
 
+##| label: fig-cvplot
 x=data.matrix(boston_data_training[, features])
 y=boston_data_training$medv
 cv_model_ridge=cv.glmnet(x, y,alpha=0) # using kfolds, k=10, a=o for ridge refression
+
+
+lambda_min <- -log(cv_model_ridge$lambda.min)
+lambda_1se <- -log(cv_model_ridge$lambda.1se)
+
+min_lam_index=which(cv_model_ridge$lambda==cv_model_ridge$lambda.min)
+min_lam_cv_val=cv_model_ridge$cvm[min_lam_index]
+
+se_lambda_index=which(cv_model_ridge$lambda==cv_model_ridge$lambda.1se)
+se_lam_cv_val=cv_model_ridge$cvm[se_lambda_index]
+
+
+#code below for creatinG CV error plot
 
 #plot(cv_model_ridge) # CV MSE for different regularization values
 
@@ -643,15 +659,6 @@ cv_model_ridge=cv.glmnet(x, y,alpha=0) # using kfolds, k=10, a=o for ridge refre
 #      xlim = c(-9,1.8),
 #      ylab='CV MSE'
 # )
-
-lambda_min <- -log(cv_model_ridge$lambda.min)
-lambda_1se <- -log(cv_model_ridge$lambda.1se)
-
-min_lam_index=which(cv_model_ridge$lambda==cv_model_ridge$lambda.min)
-min_lam_cv_val=cv_model_ridge$cvm[min_lam_index]
-
-se_lambda_index=which(cv_model_ridge$lambda==cv_model_ridge$lambda.1se)
-se_lam_cv_val=cv_model_ridge$cvm[se_lambda_index]
 
 
 # text(lambda_min+0.08 , max(cv_model_ridge$cvm),
@@ -666,17 +673,59 @@ se_lam_cv_val=cv_model_ridge$cvm[se_lambda_index]
 # 
 # 
 # title(main = "Ridge Regression Cross-Validation Error",line = 2.5)
+
+
 ```
 
-![](CV_MSE_PLOT.png){width="614" height="292"}
-
-```{r,echo=F,eval=F}
-
-min_lam_index=which(cv_model_ridge$lambda==cv_model_ridge$lambda.min)
-cv_model_ridge$cvm[min_lam_index]
-
-se_lambda_index=which(cv_model_ridge$lambda==cv_model_ridge$lambda.1se)
-cv_model_ridge$cvm[se_lambda_index]
+```{r pred_mse__, eval=F, echo=F}
+# #| message: true
+# #| warning: true
+# 
+# test_data_feat=test_data %>% mutate(chas=factor(chas,levels=c(0,1)))%>% 
+#   dplyr::select(all_of(features))
+# 
+# test_data_feat_x=data.matrix(test_data[, features])
+# y_test_true=as.vector(test_data %>% dplyr::select(medv) %>% pull())
+# 
+# 
+# bk_test_predictions=predict(bk_model,newdata=test_data_feat)
+# bk_test_predictions=as.vector(bk_test_predictions)
+# lasso_test_predictions=as.vector(unname(predict(cv_model_lasso,newx=test_data_feat_x)))
+# ridge_test_predictions=as.vector(unname(predict(cv_model_ridge,newx=test_data_feat_x)))
+# 
+# all_test_predictions=data.frame(backward_selection=bk_test_predictions,
+#                            ridge_predictions=ridge_test_predictions,
+#                            lasso_predictions=lasso_test_predictions,
+#                            y_true=y_test_true,
+#                            pred_id=1:106
+#                            )
+# 
+# test_mses=c(mse_base)
+# 
+# 
+# for(pred in head(names(all_test_predictions),-1) ){
+#   model_pred=all_test_predictions %>% dplyr::select(any_of(pred)) %>% pull()
+#   test_mse_i=mse_func(y_test_true,model_pred)
+#   test_mses=c(test_mses,test_mse_i)
+#   
+# }
+#   
+# test_mses # add plot of ytrue vs predictions from the 
+# 
+# all_test_predictions %>% ggplot(aes(x=pred_id)) + 
+#   geom_line(aes(y = y_true, color = "ytrue"))+
+#   geom_line(aes(y = backward_selection, color = "Backward Selection y_hat"))+
+#   geom_line(aes(y = ridge_predictions, color = "Ridge y_hat"))+
+#   geom_line(aes(y = ridge_predictions, color = "Lasso y_hat"))+
+#   labs(title = "Test Data Prediction Comparison",x='observation index',y='y')+
+#   theme_minimal()
+# 
+#   
+# test_mses_df=data.frame(metric=c('MSE'),all_features=test_mses[1],backwise_step=test_mses[2]                             ,ridge=test_mses[3],lasso=test_mses[3]
+#                         )
+# 
+# rownames(test_mses_df) <- test_mses_df$MSE
+# kable(test_mses_df,caption = 'Model MSE Metrics')
 ```
 
 ```{r, ridge_regre_coeff, echo=FALSE, eval=TRUE}
@@ -693,52 +742,20 @@ ridge_coeff = left_join(min_lambda_coeff, lambda_1se_coeff, by = "Feature")
   
 
 
-knitr::kable(ridge_coeff, 
-col.names = c(
-    "Feature",
-    "$\\lambda_{min}$",
-    "$\\lambda_{1se}$"
-  ),
-escape = FALSE,caption = 'Ridge Regression Coefficients')
+
 
 # train_pred_lambda_min=predict(cv_model_ridge,s = "lambda.min",newx=x)
 # train_pred_lambda_1se=predict(cv_model_ridge,s = "lambda.1se",newx=x)
 # 
-# mean(train_pred_lambda_min)
-# 
-# y=boston_data_training$medv
-# 
-# sst_min=sum((y - mean(y))^2)
-# sse_min=sum((train_pred_lambda_min - y)^2)
-# 
-# rsq_min=1-(sst_min/sse_min)
-# 
-# sst_1se=sum((y - mean(y))^2)
-# sse_1se=sum((train_pred_lambda_1se - y)^2)
-# 
-# rsq_1se=1-(sst_1se/sse_1se)
-# rsq_min;rsq_1se
+
+
 ```
-
-Ridge Regression Results:
-
-1.  Cross Validation MSE is minimized at $\lambda$ =0.69 with an associated CV MSE of \~25.48. The 1.se equivalent is obtained at $\lambda$=5.34 (MSE \~29.39).
-2.   The **nox** feature still maintains its position as the largest absolute marginal predictor of median house values across both ridge models, although its magnitude is reduced.
-3.  The **indus** coefficient see a change in sign from the baseline (although this feature is statistically insignificant in the baseline model).
-
-**Lasso Regression**
-
-Method: Same as ridge regression, use cross validation to find the optimal regularization parameter(s) ,lambda, that produce the minimum CV MSE error during training and compare the coefficients produced by the model.
 
 ```{r,lasso_regr,eval=TRUE,echo=FALSE}
 x=data.matrix(boston_data_training[, features])
 y=boston_data_training$medv
 cv_model_lasso=cv.glmnet(x, y, alpha = 1) # using kfolds, k=10
 
-# plot(cv_model_lasso,
-#       xlim = c(-2,5),
-#       ylab='CV MSE'
-#  )
 
 lambda_min <- -log(cv_model_lasso$lambda.min)
 lambda_1se <- -log(cv_model_lasso$lambda.1se)
@@ -748,6 +765,15 @@ min_lam_cv_val=cv_model_lasso$cvm[min_lam_index]
 
 se_lambda_index=which(cv_model_lasso$lambda==cv_model_lasso$lambda.1se)
 se_lam_cv_val=cv_model_lasso$cvm[se_lambda_index]
+
+# Code below prodces the CV lambda plots 
+
+# plot(cv_model_lasso,
+#       xlim = c(-2,5),
+#       ylab='CV MSE'
+#  )
+
+
 
 
 # text(lambda_min+0.08 , max(cv_model_lasso$cvm),
@@ -765,32 +791,65 @@ se_lam_cv_val=cv_model_lasso$cvm[se_lambda_index]
 
 ```
 
-![LASSO CV MSE vs Regularization Parameter (lambda)](lasso_cv_mse.png){width="533" height="218"}
+\begin{figure}[ht]
+\centering
+\begin{minipage}{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{CV_MSE_PLOT.png}
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{lasso_cv_mse.png}
+\end{minipage}
+
+\caption{Cross-validation mean squared error plots for Ridge and Lasso regression.}
+\end{figure}
 
 ```{r,lass_coeff,echo=FALSE,eval=TRUE}
 
 min_lambda_coeff=as.data.frame( as.matrix(coef(cv_model_lasso, s = "lambda.min"))) %>% 
     rownames_to_column(var = "Feature")# coeff at lambd min
 
-#as.data.frame(coef(cv_model_ridge, s = "lambda.1se")) # coeff at lambd 1se
-
 lambda_1se_coeff=as.data.frame( as.matrix(coef(cv_model_lasso, s = "lambda.1se"))) %>% rownames_to_column(var = "Feature")
 
 
 lass_coeff = left_join(min_lambda_coeff, lambda_1se_coeff, by = "Feature") 
-  
 
-
-knitr::kable(lass_coeff, 
-col.names = c(
-    "Feature",
-    "$\\lambda_{min}$",
-    "$\\lambda_{1se}$"
-  ),
-escape = FALSE,caption = 'LASSO Regression Coefficients')
 ```
 
-LASSO Regression Results
+```{r combined_coeff, eval=TRUE, echo=FALSE}
+#| message: false
+#| warning: false
+
+combined_coeff = left_join(ridge_coeff, lass_coeff, by = "Feature") 
+combined_coeff=combined_coeff %>% rename(ridge_lambda_min=lambda.min.x,
+                          ridge_lambda_1se=lambda.1se.x,
+                          lasso_lambda_min=lambda.min.y,
+                          lasso_lambda_1se=lambda.1se.y)
+
+knitr::kable(
+  combined_coeff, 
+  col.names = c(
+    "Feature",
+    "Ridge $\\lambda_{min}$",
+    "Ridge $\\lambda_{1se}$",
+    "LASSO $\\lambda_{min}$",
+    "LASSO $\\lambda_{1se}$"
+  ),
+  escape = FALSE,
+  caption = "Ridge and LASSO Regression Coefficients"
+)
+
+  
+```
+
+Regression Results:
+
+1.  Cross Validation MSE is minimized at $\lambda$ =0.69 with an associated CV MSE of \~25.48. The 1.se equivalent is obtained at $\lambda$=5.34 (MSE \~29.39).
+2.  The **nox** feature still maintains its position as the largest absolute marginal predictor of median house values across both ridge models, although its magnitude is reduced.
+3.  The **indus** coefficient see a change in sign from the baseline (although this feature is statistically insignificant in the baseline model).
+4.  
 
 ```{r pred_mse, eval=TRUE, echo=F}
 #| message: true
@@ -824,8 +883,25 @@ for(pred in head(names(all_test_predictions),-1) ){
   test_mses=c(test_mses,test_mse_i)
   
 }
+
   
-test_mses # add plot of ytrue vs predictions from the 
+test_mses_df=data.frame(metric=c('MSE'),all_features=test_mses[1],backwise_step=test_mses[2]                             ,ridge=test_mses[3],lasso=test_mses[3]
+                        )
+
+rownames(test_mses_df) <- test_mses_df$MSE
+
+kable(test_mses_df,caption = 'Model MSE Metrics')
+
+```
+
+```{r pred_plots, eval=T, echo=FALSE}
+#| message: false
+#| warning: false
+#| fig-height: 6
+#| fig-width: 9
+#| fig-cap: "Predictions Vs Actual Values"
+
+##| label: fig-predlinplot
 
 all_test_predictions %>% ggplot(aes(x=pred_id)) + 
   geom_line(aes(y = y_true, color = "ytrue"))+
@@ -835,15 +911,8 @@ all_test_predictions %>% ggplot(aes(x=pred_id)) +
   labs(title = "Test Data Prediction Comparison",x='observation index',y='y')+
   theme_minimal()
 
-  
-test_mses_df=data.frame(metric=c('MSE'),all_features=test_mses[1],backwise_step=test_mses[2]                             ,ridge=test_mses[3],lasso=test_mses[3]
-                        )
 
-rownames(test_mses_df) <- test_mses_df$MSE
-kable(test_mses_df,caption = 'Model MSE Metrics')
 ```
-
-\*best model= all features model (yikes!)
 
 <https://statisticsbyjim.com/regression/interaction-effects/>
 
