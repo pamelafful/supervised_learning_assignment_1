@@ -9,7 +9,7 @@ editor: visual
 titlepage: "UCTLogo.jpg"
 
 execute: 
-  cache: false
+  cache: true
   warning: false
   message: false
   echo: false
@@ -52,6 +52,7 @@ library(dplyr)
 library(interactions)
 library(kableExtra)
 library(patchwork) 
+library(knitr)
 ```
 
 ```{r, data_read,echo=FALSE,eval=TRUE}
@@ -121,9 +122,16 @@ variable_summ=data.frame(feature=names(boston_data),
 
 variable_summ=left_join(variable_summ,col_types,by='feature')
 
-kable(variable_summ,caption='Boston Data Data Summary') %>% kable_styling(latex_options = "scale_down")
+
+# kable(variable_summ, caption = 'Boston Data Data Summary', format = "latex", booktabs = TRUE) %>%
+#   kable_styling(latex_options = c("hold_position")) %>%
+#   landscape()
+#   
+
 
 ```
+
+![](data_attributes.png){width="600"}
 
 The complete data set contains 506 observations across 13 columns. The data is complete, with no null values, and all columns are registered as numeric. **Tax (28404), age (792), and zn (543)** display the greatest variance across the features, whilst **nox (0.01) and rm (0.49)** show the least variance across their respective values.
 
@@ -138,9 +146,8 @@ variable_summ %>% arrange(variance) %>%
 #| message: false
 #| warning: false
 #| label: fig-medv_hist
-#| fig-cap: "Median House Value Distribution"
 
-boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
+fig1=boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
   ggplot(aes(x=medv) ) +
   geom_histogram(fill='steelblue') +
   labs(title = "Distribution of median house values",x='median house value')+
@@ -155,14 +162,14 @@ boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor
 #| message: false
 #| warning: false
 #| label: fig-chas_obs
-#| fig-cap: "Observation Count Chas Factor"
 
-boston_data %>% group_by(chas) %>% 
+
+fig2=boston_data %>% group_by(chas) %>% 
  summarize(row_cnt=length(medv)) %>% 
   mutate(chas=factor(chas,levels=c(0,1))) %>% 
     ggplot(aes(x=chas,y=row_cnt,group=1) ) +
   geom_col(fill = "steelblue") +
-  labs(title = "count of observations by chas factor variable",x='chas',y='#observations')+
+  labs(title = "Count of Observations by Chas Factor",x='chas',y='#observations')+
   theme_minimal()
 ```
 
@@ -171,15 +178,13 @@ The data data is imbalanced, with more observations for the chas class=0.
 ```{r medv, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
-#| label: fig-chas_box
-#| fig-cap: "Median House Value Distribution,Grouped by Chas"
 
-ggplotly(boston_data %>%
+fig3=boston_data %>%
   mutate(chas=factor(chas,levels=c(0,1))) %>% 
     ggplot(aes(x=chas,y=medv,fill = chas) ) +
   geom_boxplot() +
   labs(title = "Distribution of Median House Value Grouped By Chas",x='chas',y='median value')+
-  theme_minimal())
+  theme_minimal()
 
 
 ```
@@ -189,11 +194,10 @@ The median house value for observations with chas=0 is slightly higher at 23.3K,
 ```{r rad_index_dist, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
-#| label: fig-radial_index_obs
-#| fig-cap: "Observation Count Per Radial Accessibility Index"
 
 
-boston_data %>%
+
+fig4=boston_data %>%
   mutate(rad=factor(rad,levels=(sort(unique(boston_data$rad)) ))) %>% 
   group_by(rad) %>% 
   summarize(row_cnt=length(medv)) %>% 
@@ -201,16 +205,30 @@ boston_data %>%
   geom_col(fill ='steelblue') +
   labs(title = "Distribution of Median House Value Grouped By Rad Index",x='rad index',y='#observations')+
   theme_minimal()
+
+
 ```
 
 Most observations are contained with the rad values= 4,5 and 24
 
+```{r patches1, eval=TRUE}
+#| message: false
+#| warning: false
+#| label: fig-radial_index_obs
+#| fig-cap: "Median House Value Distribution,Grouped by Chas"
+#| fig-height: 6
+#| fig-width: 9
+
+
+#wrap_plots(fig1,fig2 , ncol = 2)
+
+(fig1)/(fig3+fig2)
+
+```
+
 ```{r,med_val_index,echo=FALSE,eval=TRUE}
 
-#| label: fig-radial_index_box_plot
-#| fig-cap: "Distribution of Median House Values by Radial Accesibility Index"
-
-boston_data %>%
+fig5=boston_data %>%
   mutate(rad=factor(rad,levels=(sort(unique(boston_data$rad)) ))) %>% 
   ggplot(aes(x=rad,y=medv,fill = rad) ) +
   geom_boxplot() +
@@ -218,6 +236,17 @@ boston_data %>%
   theme_minimal()
   
 
+```
+
+```{r patch_2, eval=TRUE, echo=FALSE}
+#| message: false
+#| warning: false
+#| fig-height: 6
+#| fig-width: 8
+#| label: fig-radial_index_box_plot
+#| fig-cap: "Distribution of Median House Values by Radial Accesibility Index"
+
+fig4/fig5
 ```
 
 Grouping house value distributions by the RAD index value shows that median house values do not consistently increase or decrease with changes in the rad index. Observations with a rad value of 24 display the lowest house values among the index groups.
@@ -249,7 +278,11 @@ geom_tile() +
 
 ```
 
-Features, **rm and lstat** display the largest correlation, in absolute value, with medv. the rad and tax variables are most most highly correlated variables amongst features- signaling a strong possibility of multicollinearity \*this could what is causing our variance to blow up-talk about the implications
+The data shows evidence of multicollinearity, with 8 out of 11 explanatory features reporting linear correlations \>=70%. In particular, features, **rm and tax** display the largest correlation (\~91%), in absolute value. Features, **lstat (\~-74%)** and **rm (\~70%),** show the highest absolute value correlations to the response value variable. \*this could what is causing our variance to blow up-talk about the implications
+
+```{r,hig_corr,eval=FALSE,echo=F}
+corr_data_df %>% filter(value>=0.7 & (Var1!=Var2)) %>% arrange(desc(value))
+```
 
 ```{r, eval=TRUE, echo=FALSE}
 #| message: false
@@ -269,13 +302,16 @@ boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor
   theme(legend.position = "right")
 ```
 
-Analyzing the significance of the the correlations, the correlations between the response variable, medv, and all the other numeric features look to be significant at 5%.
+Analyzing the significance of the correlations, the correlations between the response variable, medv, and all other numeric features appears to be significant at the 1% level. The observed relationship between medv and its highest correlated feature, lstat appears to be negatively non-linear.
+
+Another interesting feature interaction is that of nox and the dis features which show a significant negative correlation, which the shape of the scatter plot also indication non-linearity. This intuitively reasonable as the greater the distance to employment centres- would indicate lower levels of pollutants in the the area, with levels also rapidly decreasing as the distances increase \* word this better
 
 # Model Building
 
 ```{r lm_fit, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
+#| results: asis
 
 # Scale the data before training
 features=head(names(boston_data_training),-1)
@@ -294,11 +330,30 @@ tr_d=boston_data_training %>%
 all_feat_model=lm(medv ~ ., data=tr_d)
 
 
-stargazer(all_feat_model, 
-          type='text', 
-          digits = 2, 
-          title = 'Baseline Model:All Feature Regression Summary', 
-          style = 'qje')
+stargazer(all_feat_model,
+          type='text',
+          digits = 2,
+          title = 'Baseline Model:All Feature Regression Summary',
+          style = 'qje',
+          no.space = TRUE)
+
+
+# modelsummary(
+#  all_feat_model,
+#   output = "latex",
+#   estimate = "{estimate}{stars}",
+#   statistic = "({std.error})",
+#   stars = c('*' = .1, '**' = .05, '***' = .01),
+#   gof_map = data.frame(
+#   raw = c("nobs", "r.squared", "adj.r.squared", "sigma", "fstatistic"),
+#   clean = c("Observations", "R²", "Adjusted R²", "Residual Std. Error", "F Statistic"),
+#   fmt = c(0, 2, 2, 2, 2)
+# )
+# ,
+#   title = "Backwise Step Best Model Regression Summary"
+# )
+
+
 
 ```
 
@@ -372,10 +427,11 @@ Method:
 1.  Start off with the baseline model: regress response variable against all features
 2.  Iteratively remove one feature, retrain the model and store both the AIC and BIC scores for each retrained model.
 
-ref website:<https://alain-vandormael.netlify.app/post/varselect/#:~:text=Stepwise%20regression,next%20deletion%20increases%20the%20AIC.>
-
-```{r,bk_step,echo=FALSE,eval=TRUE}
-
+```{r bk_step, eval=TRUE, echo=FALSE}
+#| message: false
+#| warning: false
+#| fig-height: 2
+#| fig-width: 6
 #| label: fig-barplot
 #| fig-cap: "AIC and BIC curves per Backwise Steo Regression Iteration"
 
@@ -448,7 +504,7 @@ p=results %>% mutate(Step=factor(Step,levels=c(1,2,3))) %>%
   ) +
   theme_minimal()
 
-ggplotly(p)
+p
 
 ```
 
@@ -459,8 +515,9 @@ ggplotly(p)
 stargazer(bk_model, 
           type='text', 
           digits = 2, 
-          title = 'Backwise Step Best Model Regression Summary ', 
-          style = 'qje')
+          title = 'Backward Stepwise Best Model Regression Summary ', 
+          style = 'qje',
+          no.space = TRUE)
 
 ```
 
@@ -522,7 +579,9 @@ aic_plot/bic_plot/mse_plot
 
 **Ridge Regression**
 
-```{r,ridge_regr,eval=TRUE,echo=FALSE}
+Method: Use cross validation to find the optimal regularization parameter(s) ,lambda, that produce the minimum CV MSE error during training and compare the coefficients produced by the model.
+
+```{r,ridge_regr,eval=F,echo=FALSE}
 
 regressors= boston_data_training %>% mutate(chas=factor(chas,levels=c(0,1)))%>% dplyr::select( all_of( c('medv',features)))
 regressors_x=model.matrix(medv~.,data=regressors)[,-1]
@@ -562,33 +621,180 @@ pivot_longer(info_criteria_df,
 
 ```
 
-Best lambda val=0 for AIC consideration
+```{r ridge_regr_coeff, eval=TRUE, echo=FALSE}
+#| message: false
+#| warning: false
+#| fig-height: 3.5
+#| fig-width: 6
+#| label: fig-cvplot
+#| fig-cap: "CV MSE vs Regularization Parameter"
 
-```{r,ridge_regr_coeff,eval=TRUE,echo=FALSE}
 x=data.matrix(boston_data_training[, features])
 y=boston_data_training$medv
-cv_model_ridge=cv.glmnet(x, y, alpha = 0) # using kfolds, k=10
+cv_model_ridge=cv.glmnet(x, y,alpha=0) # using kfolds, k=10, a=o for ridge refression
 
-#plot(cv_model)
+#plot(cv_model_ridge) # CV MSE for different regularization values
 
-coef(cv_model_ridge, s = "lambda.1se")
+#coef(cv_model_ridge, s = "lambda.1se")
 
+
+# 
+# plot(cv_model_ridge,
+#      xlim = c(-9,1.8),
+#      ylab='CV MSE'
+# )
+
+lambda_min <- -log(cv_model_ridge$lambda.min)
+lambda_1se <- -log(cv_model_ridge$lambda.1se)
+
+min_lam_index=which(cv_model_ridge$lambda==cv_model_ridge$lambda.min)
+min_lam_cv_val=cv_model_ridge$cvm[min_lam_index]
+
+se_lambda_index=which(cv_model_ridge$lambda==cv_model_ridge$lambda.1se)
+se_lam_cv_val=cv_model_ridge$cvm[se_lambda_index]
+
+
+# text(lambda_min+0.08 , max(cv_model_ridge$cvm),
+#      labels = paste("min:",round(cv_model_ridge$lambda.min,2)),
+#      pos = 4, col = "red",
+#      cex = 0.7)
+# 
+# text(lambda_1se-0.2, max(cv_model_ridge$cvm),
+#      labels = paste("1se:",round(cv_model_ridge$lambda.1se,2)),
+#      pos = 4, col = "blue",
+#      cex = 0.7)
+# 
+# 
+# title(main = "Ridge Regression Cross-Validation Error",line = 2.5)
 ```
+
+![](CV_MSE_PLOT.png){width="614" height="292"}
+
+```{r,echo=F,eval=F}
+
+min_lam_index=which(cv_model_ridge$lambda==cv_model_ridge$lambda.min)
+cv_model_ridge$cvm[min_lam_index]
+
+se_lambda_index=which(cv_model_ridge$lambda==cv_model_ridge$lambda.1se)
+cv_model_ridge$cvm[se_lambda_index]
+```
+
+```{r, ridge_regre_coeff, echo=FALSE, eval=TRUE}
+
+min_lambda_coeff=as.data.frame( as.matrix(coef(cv_model_ridge, s = "lambda.min"))) %>% 
+    rownames_to_column(var = "Feature")# coeff at lambd min
+
+#as.data.frame(coef(cv_model_ridge, s = "lambda.1se")) # coeff at lambd 1se
+
+lambda_1se_coeff=as.data.frame( as.matrix(coef(cv_model_ridge, s = "lambda.1se"))) %>% rownames_to_column(var = "Feature")
+
+
+ridge_coeff = left_join(min_lambda_coeff, lambda_1se_coeff, by = "Feature") 
+  
+
+
+knitr::kable(ridge_coeff, 
+col.names = c(
+    "Feature",
+    "$\\lambda_{min}$",
+    "$\\lambda_{1se}$"
+  ),
+escape = FALSE,caption = 'Ridge Regression Coefficients')
+
+# train_pred_lambda_min=predict(cv_model_ridge,s = "lambda.min",newx=x)
+# train_pred_lambda_1se=predict(cv_model_ridge,s = "lambda.1se",newx=x)
+# 
+# mean(train_pred_lambda_min)
+# 
+# y=boston_data_training$medv
+# 
+# sst_min=sum((y - mean(y))^2)
+# sse_min=sum((train_pred_lambda_min - y)^2)
+# 
+# rsq_min=1-(sst_min/sse_min)
+# 
+# sst_1se=sum((y - mean(y))^2)
+# sse_1se=sum((train_pred_lambda_1se - y)^2)
+# 
+# rsq_1se=1-(sst_1se/sse_1se)
+# rsq_min;rsq_1se
+```
+
+Ridge Regression Results:
+
+1.  Cross Validation MSE is minimized at $\lambda$ =0.69 with an associated CV MSE of \~25.48. The 1.se equivalent is obtained at $\lambda$=5.34 (MSE \~29.39).
+2.   The **nox** feature still maintains its position as the largest absolute marginal predictor of median house values across both ridge models, although its magnitude is reduced.
+3.  The **indus** coefficient see a change in sign from the baseline (although this feature is statistically insignificant in the baseline model).
+
+**Lasso Regression**
+
+Method: Same as ridge regression, use cross validation to find the optimal regularization parameter(s) ,lambda, that produce the minimum CV MSE error during training and compare the coefficients produced by the model.
 
 ```{r,lasso_regr,eval=TRUE,echo=FALSE}
 x=data.matrix(boston_data_training[, features])
 y=boston_data_training$medv
 cv_model_lasso=cv.glmnet(x, y, alpha = 1) # using kfolds, k=10
 
-#plot(cv_model) 
-# Top numbers= no. of non zero coefficients for that value of lambda
+# plot(cv_model_lasso,
+#       xlim = c(-2,5),
+#       ylab='CV MSE'
+#  )
+
+lambda_min <- -log(cv_model_lasso$lambda.min)
+lambda_1se <- -log(cv_model_lasso$lambda.1se)
+
+min_lam_index=which(cv_model_lasso$lambda==cv_model_lasso$lambda.min)
+min_lam_cv_val=cv_model_lasso$cvm[min_lam_index]
+
+se_lambda_index=which(cv_model_lasso$lambda==cv_model_lasso$lambda.1se)
+se_lam_cv_val=cv_model_lasso$cvm[se_lambda_index]
+
+
+# text(lambda_min+0.08 , max(cv_model_lasso$cvm),
+#      labels = paste("min:",round(cv_model_lasso$lambda.min,2)),
+#      pos = 4, col = "red",
+#      cex = 0.7)
 # 
-coef(cv_model_lasso, s = "lambda.1se") # best trade off between model simplicity and accurancy
+# text(lambda_1se-0.35, max(cv_model_lasso$cvm),
+#      labels = paste("1se:",round(cv_model_lasso$lambda.1se,2)),
+#      pos = 4, col = "blue",
+#      cex = 0.7)
+# 
+# 
+# title(main = "Lasso Regression Cross-Validation Error",line = 2.5)
+
 ```
 
+![LASSO CV MSE vs Regularization Parameter (lambda)](lasso_cv_mse.png){width="533" height="218"}
+
+```{r,lass_coeff,echo=FALSE,eval=TRUE}
+
+min_lambda_coeff=as.data.frame( as.matrix(coef(cv_model_lasso, s = "lambda.min"))) %>% 
+    rownames_to_column(var = "Feature")# coeff at lambd min
+
+#as.data.frame(coef(cv_model_ridge, s = "lambda.1se")) # coeff at lambd 1se
+
+lambda_1se_coeff=as.data.frame( as.matrix(coef(cv_model_lasso, s = "lambda.1se"))) %>% rownames_to_column(var = "Feature")
+
+
+lass_coeff = left_join(min_lambda_coeff, lambda_1se_coeff, by = "Feature") 
+  
+
+
+knitr::kable(lass_coeff, 
+col.names = c(
+    "Feature",
+    "$\\lambda_{min}$",
+    "$\\lambda_{1se}$"
+  ),
+escape = FALSE,caption = 'LASSO Regression Coefficients')
+```
+
+LASSO Regression Results
+
 ```{r pred_mse, eval=TRUE, echo=F}
-#| message: false
-#| warning: false
+#| message: true
+#| warning: true
 
 test_data_feat=test_data %>% mutate(chas=factor(chas,levels=c(0,1)))%>% 
   dplyr::select(all_of(features))
@@ -807,3 +1013,7 @@ plot(all_feat_model, which = 2) # definately not normal
 plot(all_feat_model, which = 3) # NOT HOMOSCEDASTIC!!!
 
 ```
+
+# Appendix {.appendix}
+
+ref website:<https://alain-vandormael.netlify.app/post/varselect/#:~:text=Stepwise%20regression,next%20deletion%20increases%20the%20AIC.>
