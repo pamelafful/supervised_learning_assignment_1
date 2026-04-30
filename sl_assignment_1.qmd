@@ -849,7 +849,8 @@ Regression Results:
 1.  Cross Validation MSE is minimized at $\lambda$ =0.69 with an associated CV MSE of \~25.48. The 1.se equivalent is obtained at $\lambda$=5.34 (MSE \~29.39).
 2.  The **nox** feature still maintains its position as the largest absolute marginal predictor of median house values across both ridge models, although its magnitude is reduced.
 3.  The **indus** coefficient see a change in sign from the baseline (although this feature is statistically insignificant in the baseline model).
-4.  
+
+**Out Of Sample/ Test Data Metrics**
 
 ```{r pred_mse, eval=TRUE, echo=F}
 #| message: true
