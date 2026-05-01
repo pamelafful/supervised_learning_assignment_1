@@ -1,18 +1,53 @@
 ---
-title: "Supervised Learning Assignment 1"
-author: "Pamela Afful"
-format: 
-    pdf:
-      fig-pos: 'H'
-
+title: ""
+author: ""
 editor: visual
-titlepage: "UCTLogo.jpg"
+format:
+  pdf:
+    fig-pos: 'H'
+documentclass: article
+include-in-header:
+  text: |
+    \usepackage{graphicx}
 
+include-before-body:
+  text: |
+    \begin{titlepage}
+    \centering
+
+    {\Large University of Cape Town\par}
+    \vspace{0.8cm}
+
+    \includegraphics[width=0.35\textwidth]{UCTLogo.jpg}
+
+    \vspace{2cm}
+
+    {\Large Supervised Learning Assignment 1\par}
+    
+    \vspace{0.5cm}
+    
+    {\Large Boston Median House Values Prediction\par}
+
+    \vspace{1.5cm}
+
+    {\large Pamela Afful\par}
+
+    \vspace{0.5cm}
+
+    {\large Student Number: AFFPAM001\par}
+
+    \vfill
+
+    {\large \today\par}
+
+    \end{titlepage}
+    
 execute: 
   cache: true
   warning: false
   message: false
   echo: false
+bibliography: references.bib
 ---
 
 ```{r libs, eval=TRUE, echo=FALSE}
@@ -29,6 +64,9 @@ execute:
 #install.packages('lmridge')
 #install.packages('MASS')
 #install.packages("interactions")
+#tinytex::tlmgr_install("tabularray")
+#install.packages("car")
+
 library(dplyr)
 library(knitr)
 #library(skimr)
@@ -53,6 +91,8 @@ library(interactions)
 library(kableExtra)
 library(patchwork) 
 library(knitr)
+library(broom)
+library(car)
 ```
 
 ```{r, data_read,echo=FALSE,eval=TRUE}
@@ -64,15 +104,13 @@ boston_data=read.csv("boston.csv")
 
 # Introduction
 
-This reporrt analyses and models median house proces across a range of features inlcluding taxes, property and crime rates. The median house value is regressed against these features using several regression models, namely staight linear regression using all features, backwise step regression, ridge regression and lasso regression. The out of sample mean sqaured errrs are assesed across the the results of these models. The inclusion of an interaction variables, chas_rm, is added to the best performing model\*
-
 # Exploratory Data Analysis
 
 For the sake of data and analysis completeness, EDA is conducted on the entire Boston dataset.
 
 **Data Attributes**
 
-```{r data_atrr, eval=TRUE, echo=FALSE}
+```{r data_atrr, eval=F, echo=FALSE}
 #| message: false
 #| warning: false
 
@@ -135,11 +173,6 @@ variable_summ=left_join(variable_summ,col_types,by='feature')
 
 The complete data set contains 506 observations across 13 columns. The data is complete, with no null values, and all columns are registered as numeric. **Tax (28404), age (792), and zn (543)** display the greatest variance across the features, whilst **nox (0.01) and rm (0.49)** show the least variance across their respective values.
 
-```{r feat_var,eval=FALSE,echo=F}
-variable_summ %>% arrange(variance) %>%
-  dplyr::select(feature,variance)
-```
-
 **Median House Value Distributions**
 
 ```{r target_val_dist, eval=TRUE, echo=FALSE}
@@ -151,12 +184,8 @@ variable_summ %>% arrange(variance) %>%
 fig1=boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
   ggplot(aes(x=medv) ) +
   geom_histogram(fill='steelblue') +
-  labs(title = "Distribution of median house values",x='median house value')+
+  labs(title = "Distribution of median house values",x='median house value ($000)')+
   theme_minimal()
-
-
-
-
 ```
 
 ```{r chas_dist, eval=TRUE, echo=FALSE}
@@ -175,8 +204,6 @@ fig2=boston_data %>% group_by(chas) %>%
   theme_minimal()
 ```
 
-The data data is imbalanced, with more observations for the chas class=0.
-
 ```{r medv, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
@@ -191,7 +218,8 @@ fig3=boston_data %>%
 
 ```
 
-The median house value for observations with chas=0 is slightly higher at 23.3K, and the observations in this group skew towards higher values, in contrast to the distribution of the chas=1 observations, which is relatively more balanced around the median. Despite the difference in distributions, the two box plots show some overlap, which could indicate that the difference in means of these two groups may not be statistically significant.
+The shape of the distribution of median house values is fairly bell-shaped, with 41% (208) of median house values falling between \~\$18K and \$23K.\
+While 93% (471) of observations belong to the category with chas=0, the median house value for observations with chas=1 is 11% higher at \$23,3K compared to those in the chas=0 category. Additionally, the observations in the chas=1 group show a skew towards higher values, unlike the chas=0 group, which has a more balanced distribution around the median. Despite these differences in distribution, the two box plots overlap, suggesting that the difference in means between the two groups may not be immediately statistically significant (a difference-of-means hypothesis test would have to be conducted to formalize this).
 
 ```{r rad_index_dist, eval=TRUE, echo=FALSE}
 #| message: false
@@ -211,13 +239,11 @@ fig4=boston_data %>%
 
 ```
 
-Most observations are contained with the rad values= 4,5 and 24
-
 ```{r patches1, eval=TRUE}
 #| message: false
 #| warning: false
 #| fig-cap: "Median House Value Distribution,Grouped by Chas"
-#| fig-height: 5
+#| fig-height: 5.5
 #| fig-width: 9
 
 
@@ -225,6 +251,8 @@ Most observations are contained with the rad values= 4,5 and 24
 ##| label: fig-radial_index_obs
 
 (fig1)/(fig3+fig2)
+
+
 
 ```
 
@@ -243,7 +271,7 @@ fig5=boston_data %>%
 ```{r patch_2, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
-#| fig-height: 5
+#| fig-height: 5.5
 #| fig-width: 8
 #| fig-cap: "Distribution of Median House Values by Radial Accesibility Index"
 
@@ -251,15 +279,15 @@ fig5=boston_data %>%
 fig4/fig5
 ```
 
-Grouping house value distributions by the RAD index value shows that median house values do not consistently increase or decrease with changes in the rad index. Observations with a rad value of 24 display the lowest house values among the index groups.
+Most observations fall within the RAD index values of 4, 5, and 24. When grouping house value distributions by RAD index value, there is no discernible trend in median house values with changes in the RAD index. However, observations with a RAD value of 24 show the lowest house values among the different index, with no overlap with the other box plots.
 
 **Feature Correlations**
 
 ```{r,eval=TRUE, echo=FALSE}
 #| label: fig-heatmap
 #| fig-cap: "Feature Correlations"
-#| fig-height: 6
-#| fig-width: 10
+#| fig-height: 4.5
+#| fig-width: 10.5
 
 library(reshape2)
 corr_data=boston_data %>% mutate(chas=factor(chas)) %>% 
@@ -269,7 +297,7 @@ corr_data=boston_data %>% mutate(chas=factor(chas)) %>%
 
 corr_data_df=melt(corr_data)
 
-corr_data_df %>% ggplot(aes(x=Var2, y=Var1, fill=value))+
+hp=corr_data_df %>% ggplot(aes(x=Var2, y=Var1, fill=value))+
 geom_tile() +
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        midpoint = 0, limit = c(-1,1), space = "Lab", 
@@ -281,35 +309,58 @@ geom_tile() +
 
 ```
 
-The data shows evidence of multicollinearity, with 8 out of 11 explanatory features reporting linear correlations \>=70%. In particular, features, **rm and tax** display the largest correlation (\~91%), in absolute value. Features, **lstat (\~-74%)** and **rm (\~70%),** show the highest absolute value correlations to the response value variable. \*this could what is causing our variance to blow up-talk about the implications
+![Feature Correlation Heatmap](corr_heatmap.png){width="553" height="296"}
 
-```{r,hig_corr,eval=FALSE,echo=F}
-corr_data_df %>% filter(value>=0.7 & (Var1!=Var2)) %>% arrange(desc(value))
-```
+The data shows evidence of multicollinearity amongst regressors, with 8 out of 11 explanatory features reporting linear correlations \>=70%. In particular, features, **rm and tax** display the largest correlation (\~91%), in absolute value. Features, **lstat (\~-74%)** and **rm (\~70%),** show the highest absolute value correlations to the response value variable.
 
 ```{r, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
 #| label: fig-pairplot
 #| fig-cap: "Feature Pairplot"
-#| fig-height: 12
+#| fig-height: 10
 #| fig-width: 15
 
 # comeback and make this look better
 # feat=c("crim",    "zn"      "indus"   "chas"    "nox"     "rm"      "age"     "dis"     "rad"     "tax"     "ptratio" "lstat"   "medv" )
 
 boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% 
-  ggpairs(columns=1:13,mapping = aes(color = chas) ) +
+  ggpairs(setdiff(names(boston_data), "chas"),mapping = aes(color = chas), legend = 1 ) +
   labs(title = "Feature Pairwise Plot")+
   theme_minimal()+
-  theme(legend.position = "right")
+  theme(legend.position = "bottom")
 ```
 
-Analyzing the significance of the correlations, the correlations between the response variable, medv, and all other numeric features appears to be significant at the 1% level. The observed relationship between medv and its highest correlated feature, lstat appears to be negatively non-linear.
+The correlations between the response variable, **medv**, and all other numeric features are significant at the 1% level. The observed relationship between medv and its highest correlated feature, **lstat** appears to be negatively non-linear upon visual inspection of the shape of the scatter plot.
 
-Another interesting feature interaction is that of nox and the dis features which show a significant negative correlation, which the shape of the scatter plot also indication non-linearity. This intuitively reasonable as the greater the distance to employment centres- would indicate lower levels of pollutants in the the area, with levels also rapidly decreasing as the distances increase \* word this better
+Grouped by the **chas** feature, for cases where chas =1 (which have shown to have higher median house values) median house values correlations lose their statistical significance with 7 features, namely **crime, indus, age ,dis, rad, tax, and ptratio.\
+**\
+Another interesting feature interaction is that of the **nox** and the **dis** features, which show a significant negative correlation, with the shape of the scatter plot also indicating non-linearity. This is intuitively reasonable as the greater the distance to employment centers, the less traffic in the area, resulting in lower levels of pollutants (nox).
+
+```{r,eval=F,echo=F}
+
+log_v=boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% mutate(log_lstat=log(lstat)) %>% 
+  ggplot(aes(x=log_lstat,y=medv,color=chas))+
+  geom_point()+
+  labs(title = "Transformed",x='log(lstate)',y='medv')+
+  theme_minimal()
+  
+
+normal_l=boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor(chas,levels=c(0,1))) %>% mutate(log_lstat=log(lstat)) %>% 
+  ggplot(aes(x=lstat,y=medv,color=chas))+
+  geom_point()+
+  labs(title = "Normal",x='lstate',y='medv')+
+  theme_minimal()
+  
+
+(log_v+normal_l)
+```
 
 # Model Building
+
+**Baseline Model**
+
+Method: Use all regressors in the model, with minimal transformation. The **chas** variable will be transformed into a factor as it is categorical whilst the rad (index) variable will be kept as a numeric variable to preserve its ordinality
 
 ```{r lm_fit, eval=TRUE, echo=FALSE}
 #| message: false
@@ -332,39 +383,52 @@ tr_d=boston_data_training %>%
 
 all_feat_model=lm(medv ~ ., data=tr_d)
 
+```
 
-stargazer(all_feat_model,
-          type='text',
-          digits = 2,
-          title = 'Baseline Model:All Feature Regression Summary',
-          style = 'qje',
-          no.space = TRUE)
+```{r,all_var_mod_summ,eval=T,echo=F}
+
+#| tbl-pos: H
+model_summary = summary(all_feat_model)
+
+# extarct Fstat
+f_value = model_summary$fstatistic[1]
+f_df1   = model_summary$fstatistic[2]
+f_df2  = model_summary$fstatistic[3]
+
+# get associated pval
+f_pvalue = pf(
+  f_value,
+  f_df1,
+  f_df2,
+  lower.tail = FALSE
+)
+
+f_text <- sprintf(
+  "Fstat (%d, %d) = %.2f***, p = %.3g",
+  f_df1, f_df2, f_value, f_pvalue
+)
 
 
-# modelsummary(
-#  all_feat_model,
-#   output = "latex",
-#   estimate = "{estimate}{stars}",
-#   statistic = "({std.error})",
-#   stars = c('*' = .1, '**' = .05, '***' = .01),
-#   gof_map = data.frame(
-#   raw = c("nobs", "r.squared", "adj.r.squared", "sigma", "fstatistic"),
-#   clean = c("Observations", "R²", "Adjusted R²", "Residual Std. Error", "F Statistic"),
-#   fmt = c(0, 2, 2, 2, 2)
-# )
-# ,
-#   title = "Backwise Step Best Model Regression Summary"
-# )
-
-
+bl_summ=tbl_regression(all_feat_model,
+                       intercept = TRUE) %>%
+  add_significance_stars() %>%
+  add_glance_source_note(
+    include = c(r.squared, adj.r.squared, nobs)
+  ) %>%
+  modify_source_note(
+    source_note = f_text
+  ) %>%
+  modify_caption("**Baseline Model:All Feature Regression Summary**")
 
 ```
+
+![Baseline Model Regression Summary](baseline_model_summ.png){width="397"}
 
 Model Performance:
 
 -   The model shows a relatively good fit to the training data, with \~74% of the variation in the data, explained by the model
 
--   10 out of the 12 feature coefficients (excluding the intercept) are statistically different from 0 at at lest the 10% level, with 9 of these significant at the 1% level
+-   9 out of the 12 feature coefficients (excluding the intercept) are statistically different from 0 at at lest the 10% level, with 9 of these significant at the 1% level
 
 -   Nitrogen Oxide (nox) levelsshow the biggest marginal change , in absolute value, to median house values, medv, with an estimated negative change of -20.6K in estimated average houspe values per one unit increase in nox levels.
 
@@ -394,11 +458,11 @@ scaled_test_features$zn=new_data$zn
       
 test_predictions=predict(all_feat_model,newdata=new_data)
 
-
-
 ```
 
 ```{r,test_mse,eval=TRUE,echo=FALSE}
+
+
 
 mse_func=function(ytrue,y_pred){
   errors=ytrue-y_pred
@@ -419,7 +483,7 @@ kable(bl_mse,caption='Baseline Test MSE')
 
 ```
 
-The out-of-sample (OOO) MSE for the baseline model is at 16.64K, that is, on average the baseline model's home values predictions are expected to deviate from the actual by this value, which is greater that the standard deviation of median house values of \~9.2.
+The out-of-sample (OOO) MSE for the baseline model is at \$16.64K, that is, on average the baseline model's home values predictions are expected to deviate from the actual by this value (which is greater that the standard deviation of median house values of \~\$9.2K).
 
 # Model Improvement
 
@@ -428,7 +492,7 @@ The out-of-sample (OOO) MSE for the baseline model is at 16.64K, that is, on ave
 Method:
 
 1.  Start off with the baseline model: regress response variable against all features
-2.  Iteratively remove one feature, retrain the model and store both the AIC and BIC scores for each retrained model.
+2.  Iteratively remove one feature, retrain the model and store both the AIC and BIC scores for each retrained model- the StepAIC function terminates when subsequent feature removals does not improve AIC/BIC.
 
 ```{r bk_step, eval=TRUE, echo=FALSE}
 #| message: false
@@ -451,24 +515,6 @@ bics=c()
 
 set.seed(718)
 
-# MANUAL FOR LOOP
-
-for(i in 1:length(features)-1  ){
-  new_features=head(features,-i)
-  model_feat=c(model_feat,length(new_features))
-  train_set=boston_data_training %>% mutate(chas=factor(chas,levels=c(0,1)))%>% dplyr::select( all_of( c('medv',new_features)))
-  sel_feat_model=lm(medv ~ ., data=train_set)
-  new_data_i=test_data %>% mutate(chas=factor(chas,levels=c(0,1))) %>%
-    dplyr::select(all_of(new_features)) 
-  train_predictions_i=predict(sel_feat_model)#newdata=new_data_i use training vals
-  y_true=train_set %>% dplyr::select(medv) %>% pull()
-  error_i=mse_func(y_true,train_predictions_i)
-  mses=c(mses,error_i)
-  aic=AIC(sel_feat_model,k=2) # using default value
-  bic=AIC(sel_feat_model)
-  aics=c(aics,aic)
-  bics=c(bics,bic)
-}
 
 models = list()
 mod0=lm(medv ~1 , data=tr_d) 
@@ -476,8 +522,6 @@ bk_model=stepAIC(all_feat_model,direction='backward',scope=formula(mod0), trace 
     models[[length(models) + 1]] <<- model # keep/store all intermediate models as well as their AIC scores
     return(AIC) }
     )
-
-
 
 # Store into a dataframe
 
@@ -514,75 +558,58 @@ p
 ```{r bk_summ, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
+#| tbl-pos: H
 
-stargazer(bk_model, 
-          type='text', 
-          digits = 2, 
-          title = 'Backward Stepwise Best Model Regression Summary ', 
-          style = 'qje',
-          no.space = TRUE)
+
+model_summary_bk = summary(bk_model)
+
+# extarct Fstat
+f_value_bk = model_summary_bk$fstatistic[1]
+f_df1_bk   = model_summary_bk$fstatistic[2]
+f_df2_bk  = model_summary_bk$fstatistic[3]
+
+# get associated pval
+f_pvalue_bk = pf(
+  f_value_bk,
+  f_df1_bk,
+  f_df2_bk,
+  lower.tail = FALSE
+)
+
+f_text_bk <- sprintf(
+  "Fstat (%d, %d) = %.2f***, p = %.3g",
+  f_df1_bk, f_df2_bk, f_value_bk, f_pvalue_bk
+)
+
+
+bk_summ_reg=tbl_regression(bk_model,
+               intercept=TRUE) %>%
+  add_significance_stars() %>%
+  add_glance_source_note(
+    include = c(r.squared, adj.r.squared, nobs)
+  ) %>%
+  modify_source_note(
+    source_note = f_text_bk
+  ) %>%
+  modify_caption("**Backward Stepwise Best Model Regression Summary**")
 
 ```
+
+![Backward Stepwise Regression Summary](bk_mod_summary.png){width="475"}
 
 Backward Step Regression Results:
 
-1.  The step model reached the lowest AIC (\~2408) and BIC(\~2456) after 3 iterations with 10 out of the 12 features retained.
+1.  The step model reached the lowest AIC (\~2408) and BIC(\~2456) after 3 iterations with 10 out of the 12 features retained (subsequent removals of features did no improve scores).
 
 2.  Retained Features: **crime, zn, chas, nox, rm, dis, rad, tax, ptratio and lstat** with the **age** and **indus** variables removed**.** All of these are still statistically significant at least up to the 10% level.
 
-3.  All regressors also maintain their sign with very little changes to their maginal effects with respect to the response variable.
+3.  All regressors also maintain their sign with very little changes to their marginal effects with respect to the response variable.
 
-4.  R square (\~74%) and the F statistic (significant at 1%) are still comparable and in the same region as the baseline model
-
-```{r,plot_bk_metrics,echo=FALSE,eval=F}
-
-mses[1]=mse_base
-model_feat[1]=12 # replace with baseline model number of features
-aics[1]=aic_base
-
-
- # replace with baseline model number of features
-bics[1]=bic_base
-
-# Create dataframe from the above
-backwards_feat_sel_metrics=data.frame(number_features=model_feat,aic=aics,bic=bics,mse=mses)
-aic_plot=backwards_feat_sel_metrics %>% 
-  mutate(number_features=factor(number_features)) %>% 
-  ggplot(aes(x=number_features,y=aic,group = 1,color='blue'))+
-  geom_line()+
-  geom_point()+
-  labs(title = "Training AIC vs Number of Training Features- Backward Stepwise Selection",x='#Features',y='train AIC')+
-  geom_vline(xintercept = 12) +
-  annotate("text", x = 10.5, y = 2800, label = "Baseline-all features", angle = 0)+
-  theme_minimal()
-
-bic_plot=backwards_feat_sel_metrics %>% 
-  mutate(number_features=factor(number_features)) %>% 
-  ggplot(aes(x=number_features,y=bic,group = 1,color='blue'))+
-  geom_line()+
-  geom_point()+
-  labs(title = "Training BIC vs Number of Training Features- Backward Stepwise Selection",x='#Features',y='train BIC')+
-  geom_vline(xintercept = 12) +
-  annotate("text", x = 10.5, y = 2800, label = "Baseline-all features", angle = 0)+
-  theme_minimal()
-
-mse_plot=backwards_feat_sel_metrics %>% 
-  mutate(number_features=factor(number_features)) %>% 
-  ggplot(aes(x=number_features,y=mse,group = 1,color='blue'))+
-  geom_line()+
-  geom_point()+
-  labs(title = "Training MSE vs Number of Training Features- Backward Stepwise Selection",x='#Features',y='train MSE')+
-  geom_vline(xintercept = 12) +
-  annotate("text", x = 10.5, y = 40, label = "Baseline-all features", angle = 0)+
-  theme_minimal()
-
-
-aic_plot/bic_plot/mse_plot
-```
+4.  R square (\~74%) and the F statistic (significant at 1%) are still in the same region as the baseline model.
 
 **Ridge and Lasso Regression**
 
-Method: Use cross validation to find the optimal regularization parameter(s) ,lambda, that produce the minimum CV MSE error during training and compare the coefficients produced by the model.
+Method: Use cross validation to find the optimal regularization parameter(s) ,$\lambda$, that produce the minimum CV MSE error during training and compare the coefficients produced by the model.
 
 ```{r,ridge_regr,eval=F,echo=FALSE}
 
@@ -646,6 +673,8 @@ min_lam_cv_val=cv_model_ridge$cvm[min_lam_index]
 
 se_lambda_index=which(cv_model_ridge$lambda==cv_model_ridge$lambda.1se)
 se_lam_cv_val=cv_model_ridge$cvm[se_lambda_index]
+
+
 #code below for creatinG CV error plot
 
 #plot(cv_model_ridge) # CV MSE for different regularization values
@@ -791,14 +820,14 @@ knitr::kable(
 
 Regression Results:
 
-1.  The best regularization parametrs for the Ridge and LASSO models are reached at at $\lambda$ =0.69 (CV_MSE~min~ of \~25.48) and 0.69 ( CV_MSE~min~ \~27.9), respectively . The 1~se~ equivalent parameters for Ridge and LASSO are obtained at $\lambda$=4.86 (CV_MSE~min~ \~28.79) and $\lambda$=0.67 (CV_MSE~min~ \~27.99).
-2.   For the simplest model, LASSO~1SE~ , 7 non-zero coefficients remained in the final model; the coefficients of **zn, indus, age,** and **rad** were all pushed to zero. In particular, **zn and rad** were statistically significant in the baseline model.
-3.  The **nox** feature still maintains its position as the largest absolute marginal predictor of median house values across three out of the four models, with the rm feature having the largest marginal contribution to response variable.
-4.  In addition to a change in magnitude, some feature coefficients also show a change in sign in some of models: the **indus** coefficient also sees a change (positive to negative) in sign from the baseline in both the Ridge~1SE~ and Ridge~min~ models while the **rad** feature coefficient changes sign in the Ridge~1SE~ model (although this feature coefficient is highly penalized relative to the baseline).
+1.  The best regularization parameters for the Ridge and LASSO models are reached at at $\lambda$ =0.69 (CV_MSE~min~ of \~25.48) and 0.69 ( CV_MSE~min~ \~27.9), respectively . The 1~se~ equivalent parameters for Ridge and LASSO are obtained at $\lambda$=4.86 (CV_MSE~min~ \~28.79) and $\lambda$=0.67 (CV_MSE~min~ \~27.99).
+2.  For the simplest model, LASSO~1SE~ , 7 non-zero coefficients remained in the final model; the coefficients of **zn, indus, age,** and **rad** were all pushed to zero. In particular, **zn and rad** were statistically significant in the baseline model.
+3.  The **nox** feature still maintains its position as the largest absolute marginal predictor of median house values across three out of the four models, with the **rm** feature having the largest marginal contribution to response variable in the LASSO 1~se~ model.
+4.  In addition to a change in magnitude, some feature coefficients also show a change in sign in some of the models: the **indus** coefficient changes from positive to negative from the baseline in both the Ridge~1SE~ and Ridge~min~ models while the **rad** feature coefficient changes sign in the Ridge~1SE~ model (although this feature coefficient is highly penalized relative to the baseline).
 
 **Predictions On Test Data**
 
-For both the Ridge and LASSO regressions, the 1SE models will be used to favour model simplicity and reduce the risk of over fitting; these are used to predict on the test data.
+For both the Ridge and LASSO regressions, the 1SE models will be used to favour model simplicity and further reduce the risk of over fitting; these are used to predict on the test data.
 
 ```{r pred_mse, eval=TRUE, echo=F}
 #| message: true
@@ -835,11 +864,11 @@ for(pred in head(names(all_test_predictions),-1) ){
 
   
 test_mses_df=data.frame(metric=c('MSE'),
-                        all_features=test_mses[1],
-                        backwise_step=test_mses[2],
-                        ridge=test_mses[3],
-                        lasso=test_mses[4],
-                        `average across models`=mean(test_mses)
+                        all_features=round(test_mses[1],2),
+                        backwise_step=round(test_mses[2],2),
+                        ridge=round(test_mses[3],2),
+                        lasso=round(test_mses[4],2),
+                        `average across models`=round(mean(test_mses[-length(test_mses)]),2)
                         )
 
 rownames(test_mses_df) <- test_mses_df$MSE
@@ -848,13 +877,13 @@ kable(test_mses_df,caption = 'Test Data MSE Model Metrics')
 
 ```
 
-Although the test scores MSE are relatively close to each other for 3 out of the 4 models, the variable selection models fail to outperform the baseline model LASSO having the worst test mse out of the 4. \* Talk about implications of multicollinearity in conclusion
+Although the test scores MSE are relatively close to each other for 3 out of the 4 models, the variable selection models fail to outperform the baseline model, with the Backward Stepwise model coming in close second. The LASSO model has the worst test MSE out of the 4 at \$19.77K-11% higher than the average across models.
 
 ```{r pred_plots, eval=T, echo=FALSE}
 #| message: false
 #| warning: false
-#| fig-height: 6
-#| fig-width: 9
+#| fig-height: 5
+#| fig-width: 8
 #| fig-cap: "Predictions Vs Actual Values"
 
 ##| label: fig-predlinplot
@@ -876,15 +905,86 @@ all_test_predictions %>%
 
 ```
 
-All the model predictions show relatively good fit to the general shape of the response variable in the test data.
+All the model predictions show relatively good fit to the general shape and trend of the response variable in the test data, although there is general under prediction at some extreme points of the response data.
 
 **Inclusion of Interaction Term**
 
-Method: The **chas** feature which is a categorical variable provides an easy way of segmenting the data into two distinct groups for which partial regression curves for the individual features can be visually inspected for signs of interaction. Thus the following process is used to choose the interaction feature:
+Method: The **chas** and **rad**[^1] categorical variable provides an easy way of segmenting the data into distinct groups for which interactions with other variables can be analyzed. Thus the following process is used to choose the interaction feature:
 
-1.   Create interaction terms for all features with the chas feature: $\text{Feature}_i \times \text{chas}$
+[^1]: Measured as an index as per meta data definition
 
-2.  Analyze the correlations of all these interction variables with response variable, medv. Choose the interaction with the highest, and statistically significant correlation.
+1.  Create interaction terms for all features with the chas feature: ${ChasIntVar}=\text{Feature}_i \times \text{chas}$
+
+2.  Do the same for the rad feature: ${RadIntVar}=\text{Feature}_i \times \text{rad}$
+
+3.  Analyze the correlations of all these interaction variables wth respect to the response variable, and choose the interaction with the highest, and most statistically significant correlation.
+
+4.  Add this term to the best-performing model, which in this case was the **full variable regression.**
+
+5.  Again, for the sake of data completeness, the interaction correlation analysis is done on the full data set before addition to the model.
+
+```{r int_corrs_chas,echo=FALSE,eval=TRUE}
+#| message: false
+#| warning: false
+#| fig-height: 12
+#| fig-width: 14
+#| fig-cap: "Interaction Features Pairplot"
+
+boston_data_chas=boston_data
+int_feats=c('medv')
+for(i in features){
+boston_data_chas=boston_data_chas %>% mutate(!!paste0(i, "_chas") := .data[[i]] * chas)
+
+int_feats=c(int_feats,paste0(i, "_chas"))
+ 
+}
+
+# Look at which interactions have strongest correlation with medv
+
+corr_data=boston_data_chas %>% mutate(chas=factor(chas)) %>% 
+  dplyr::select(any_of(int_feats)) %>% 
+  cor(use = "pairwise.complete.obs")
+
+
+boston_data_chas %>% dplyr::select(any_of(int_feats[int_feats!='chas_chas'])) %>% 
+  ggpairs(columns=1:length(int_feats[int_feats!='chas_chas'])) +
+  labs(title = "Interaction Features Pairwise Plot:Chas") +
+  theme_minimal()
+
+
+```
+
+```{r int_corrs_rad,echo=FALSE,eval=TRUE}
+#| message: false
+#| warning: false
+#| fig-height: 10
+#| fig-width: 14
+
+boston_data_rad=boston_data
+int_feats=c('medv')
+for(i in features){
+boston_data_rad=boston_data_rad %>% 
+  mutate(!!paste0(i, "_rad") := .data[[i]] * rad)
+
+int_feats=c(int_feats,paste0(i, "_rad"))
+ 
+}
+
+# Look at which interactions have strongest correlation with medv
+
+corr_data=boston_data_rad %>% mutate(chas=factor(chas)) %>% mutate(rad=factor(rad, levels=( sort(unique(boston_data$rad))  ))) %>% 
+  dplyr::select(any_of(int_feats)) %>% 
+  cor(use = "pairwise.complete.obs")
+
+
+boston_data_rad %>% dplyr::select(any_of(  int_feats[int_feats!='rad_rad']  )) %>% 
+  ggpairs(columns=1:length(int_feats[int_feats!='rad_rad'])) +
+  labs(title = "Interaction Features Pairwise Plot: Rad")+
+  theme_minimal()
+
+```
+
+Across both pair plots, the lstat_rad interaction feature show the highest (in abolute value) and most statistically significant correlation (at 1%) amongst interacted features. This will be added to the training data for the best performing model.
 
 ```{r, interaction,eval=F,echo=F}
 
@@ -936,7 +1036,7 @@ for(i in 2:length(vars_final)){
     geom_point(aes(y = medv)) +
     geom_line(aes(y = predictions, group = chas)) +
     labs(
-      title = paste("Response vs", var_name),
+      title = paste("Median House Value vs", var_name),
       x = var_name,
       y = "medv"
     ) +
@@ -954,107 +1054,138 @@ for(i in 2:length(vars_final)){
 
 ```
 
-```{r int_corrs}
-#| message: false
-#| warning: false
-#| fig-height: 12
-#| fig-width: 14
-# iteratively add interactition variables
-# Create them with chas
-
-int_feats=c('medv')
-for(i in features){
-boston_data=boston_data %>% mutate(!!paste0(i, "_chas") := .data[[i]] * chas)
-
-int_feats=c(int_feats,paste0(i, "_chas"))
- 
-}
-
-
-
-# Look at which interactions have strongest correlation with medv
-
-corr_data=boston_data %>% mutate(chas=factor(chas)) %>% 
-  dplyr::select(any_of(int_feats)) %>% 
-  cor(use = "pairwise.complete.obs")
-
-
-# corr_data_df=melt(corr_data)
-# 
-# corr_data_df %>% ggplot(aes(x=Var2, y=Var1, fill=value))+
-# geom_tile() +
-#   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
-#                        midpoint = 0, limit = c(-1,1), space = "Lab", 
-#                        name="Pearson\nCorrelation") +
-#   geom_text(aes(label = round(value, 2)), color = "black")+
-#   labs(title = "Feature Correlation Matrix",x='Feature',y='Feature')+
-#   theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1))
-
-boston_data %>% dplyr::select(any_of(int_feats)) %>% 
-  ggpairs(columns=1:length(int_feats)) +
-  labs(title = " and Feature Pairwise Plot")+
-  theme_minimal()
-
-```
-
-Median House Values, medv, shows the highest correlation with the rm_chas interaction variable. Look at and this correlation also happens to be statistically significant at 5%.
-
-```{r,int_regress}
+```{r,int_regress,eval=T,echo=F}
+#| tbl-pos: H
 
 # best performing regression =all_feat regression
 
-int_training_data= boston_data_training %>% mutate(rm_chas=chas*rm)
+int_training_data= boston_data_training %>% mutate(lstat_rad=lstat*rad)
 int_features=features
-int_features[length(int_features)+1]='rm_chas'
+int_features[length(int_features)+1]='lstat_rad'
 int_tr_d=int_training_data %>% dplyr::select( any_of(c(int_features,'medv')))
 
 all_feat_with_int_model=lm(medv ~ ., data=int_tr_d)
-summary(all_feat_with_int_model)
+
+model_summary_int = summary(all_feat_with_int_model)
+
+# extarct Fstat
+f_value_int = model_summary_int$fstatistic[1]
+f_df1_int  = model_summary_int$fstatistic[2]
+f_df2_int  = model_summary_int$fstatistic[3]
+
+# get associated pval
+f_pvalue_int = pf(
+  f_value_int,
+  f_df1_int,
+  f_df2_int,
+  lower.tail = FALSE
+)
+
+f_text_int <- sprintf(
+  "Fstat (%d, %d) = %.2f***, p = %.3g",
+  f_df1_int, f_df2_int, f_value_int, f_pvalue_int
+)
 
 
-
+int_regr=tbl_regression(all_feat_with_int_model,
+               intercept=TRUE) %>%
+  add_significance_stars() %>%
+  add_glance_source_note(
+    include = c(r.squared, adj.r.squared, nobs)
+  ) %>%
+  modify_source_note(
+    source_note =f_text_int
+  ) %>%
+  modify_caption("**Interaction-Included Model Regression Summary**")
 ```
 
-rm_chas did not turn out to be significant- but I'm not sure if this is as a result of the data imbalance (lot more chas=0 than 1) ?
+![Interaction-Variable-Included Regression Summary](int_var_regr_summ.png)
+
+Despite the significance of the two individual features, lstat and rad, the engineered interaction feature did not prove to be a statistically significant predictor of median house values \* talk about potential multicollinearity indications
 
 ```{r,int_mse,echo=F,eval=T}
 int_test_data=test_data
-int_test_data$rm_chas=int_test_data$chas*int_test_data$rm
-int_test_d=int_test_data %>% dplyr::select(any_of(c(features,'rm_chas')))
+int_test_data$lstat_rad=int_test_data$lstat*int_test_data$rad
+int_test_d=int_test_data %>% dplyr::select(any_of(c(features,'lstat_rad')))
 
 int_test_pred=predict(all_feat_with_int_model,newdata=int_test_d)
 ```
 
 ```{r,int_mse_2, echo=FALSE,eval=T}
 
-mse_func(int_test_data$medv,int_test_pred);16.6422	# oos mse improves, although the addition of the int variable is not significant?
+int_mse=mse_func(int_test_data$medv,int_test_pred)	# oos mse improves, although the addition of the int variable is not significant?
+
+mse_comp=data.frame(Metric=c('MSE'), Baseline=c(mse_base), Interaction=c(int_mse))
+
+kable(mse_comp,caption = 'Test Data MSE Comaparison: Baseline vs Interaction -Included Model')
 
 ```
 
+Again. the inclusion of the interaction did not improve model performance, although the model mse deterioration was marginal compared to the test MSEs of LASSO and Ridge regressions.
+
 # Residual Diagnostics
 
-```{r,train_errors_hist,echo=F,eval=T}
+Residual analysis is conducted on the "best" performing model; the all-feature model.
+
+```{r train_errors_hist, eval=T, echo=F}
+#| message: false
+#| warning: false
+#| fig-subcap: ["Train Residuals", "Test Residuals"]
+#| fig-height: 4
+#| fig-width: 5
+#| layout-ncol: 2
+
+
+
+
 errors=resid(all_feat_model)
 test_err=test_data$medv-test_predictions
 hist(errors,main='Distribution of Train Errors')
 hist(test_err,main='Distribution of Test Errors')
 
-
 ```
 
 ```{r,errors_qq,echo=F,eval=T}
+#| message: false
+#| warning: false
+#| fig-subcap: ["QQ Plot To Check for Normality", "Residual Variance Plot to check Homoscedascity"]
+#| fig-height: 4
+#| fig-width: 5
+#| layout-ncol: 2
 
-plot(all_feat_model, which = 2) # definately not normal 
+plot(all_feat_model, which = 2)
+plot(all_feat_model, which = 3)
 
 ```
 
-```{r,err_homo,eval=T,echo=F}
-plot(all_feat_model, which = 3) # NOT HOMOSCEDASTIC!!!
+Despite being the best performing model, residual analysis of the baseline model does not indicate that the errors follow the assumptions of the linear model, namely:
 
-```
+1.  Normality: Although the histograms for both the train and test residuals may indicate normality, the standardized residual points on the QQ plot do not fall on the straight line when compared to the theoretical normal distribution quantiles, suggesting non-normality. This greatly affects the ability and validity of statistical inference, especially concerning hypothesis testing on the key regression statistics, including prediction confidence intervals of the response variable (although the estimated coefficients are mostly unaffected).
+
+2.  Homoscedasticity: The scale-location plot does not indicate that the variance of the residuals is constant[^2], rather it seems to follow an increasing trend when plotted against fitted values. This also greatly inhibit the ability to make valid statistical inferences, especially regarding the variance and precision of the regressors as well as the overall validity (significance) of the model.
+
+[^2]: Homoscedasticity requires the plotted points to be scattered randomly about the line, with no discernible pattern.
+
+# Conclusion: Considerations and Implications of the "Best" Model
+
+Model accuracy and inference play a significant role in selecting the appropriate model for a specific task, and no single metric wholly captures the overall performance of a model. Although the baseline model reported the best out-of-sample performance based on the test Mean Squared Error (MSE), its observed model diagnostics were inadequate; challenging efficacy and consistency of the model if inference is the ultimate objective.
+
+Multicollinearity is a key attribute of the data(which the baseline model cannot address with significant modification to the features) that significantly impacts the ability to disentangle the marginal influence of individual predictors on the response variable[@boriharn2023multicollinearity]. Ridge regression effectively penalizes the coefficients of highly correlated predictors (tax and rad) with a negligible impact on out-of-sample accuracy.\
+\
+Additionally, increasing model complexity through the addition of the interaction term did not improve accuracy; the term itself proved to be a statistically insignificant predictor of house values. Across the models, **pollutant levels (nox)** and the **average number of rooms per dwelling (rm)** emerged as the most significant marginal predictors of house values, consistently maintaining their rank and sign.
+
+Given these considerations, the Ridge regression model is the most appropriate choice, as it strikes a favorable balance between maintaining model accuracy, simplicity, and interpretability.
 
 # Appendix {.appendix}
 
-ref website:<https://alain-vandormael.netlify.app/post/varselect/#:~:text=Stepwise%20regression,next%20deletion%20increases%20the%20AIC.>
+```{r,vif,echo=FALSE,eval=T}
 
-<https://statisticsbyjim.com/regression/interaction-effects/>
+#| tbl-cap: Feature VIF
+
+vif_values <- vif(all_feat_model)
+vif_tab=data.frame(as.matrix(vif_values)) %>% rename(VIF=as.matrix.vif_values.)
+
+kable(vif_tab,caption='Baseline Model: Feature Variance Inflation Factor')
+```
+
+All features moderate to high variance inflation factors, further supporting evidence of multicollinearity among features, with the biggest contributers are being the tax and rad features.

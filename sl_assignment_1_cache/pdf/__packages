@@ -26,3 +26,6 @@ MASS
 interactions
 kableExtra
 reshape2
+broom
+carData
+car
