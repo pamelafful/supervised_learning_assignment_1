@@ -104,6 +104,9 @@ boston_data=read.csv("boston.csv")
 
 # Introduction
 
+This report explores and analyzes the key predictors of median house values in the Boston area using various linear regression techniques. The predictors range across multiple factors, including the average number of rooms per household (rm), the concentration of nitrous oxide pollutants in the area (nox), and the full value of property taxes (taxes). The regression results of these various models are compared against each other to gauge which models and predictors capture the variation of median house prices observed in the data. The key contention among the linear models is the balancing of out-of-sample accuracy as well as the inferential and interpretable soundness of the models.The presence of multicollinearity among predictor variables presents a key challenge to understanding the marginal contribution of the individual regressors to the response variable, medv. \
+To address this, several variable selection approaches are compared to the baseline:  **Backward Stepwise Regression, Ridge regression, LASSO Regression**, and the inclusion of an **Interaction-Feature-Included** model. Model performance is evaluated using both mean squared error metrics, residual diagnostic checks, as well as the significance and magnitudes of the various predictors across the different models (and the stability thereof). Finally, important consideration is given to the trade-off between model complexity and interpretability, and the justification for which model performed best, given all the aforementioned information.
+
 # Exploratory Data Analysis
 
 For the sake of data and analysis completeness, EDA is conducted on the entire Boston dataset.
@@ -169,7 +172,7 @@ variable_summ=left_join(variable_summ,col_types,by='feature')
 
 ```
 
-![](data_attributes.png){width="600"}
+![](data_attributes.png){width="553"}
 
 The complete data set contains 506 observations across 13 columns. The data is complete, with no null values, and all columns are registered as numeric. **Tax (28404), age (792), and zn (543)** display the greatest variance across the features, whilst **nox (0.01) and rm (0.49)** show the least variance across their respective values.
 
@@ -212,14 +215,15 @@ fig3=boston_data %>%
   mutate(chas=factor(chas,levels=c(0,1))) %>% 
     ggplot(aes(x=chas,y=medv,fill = chas) ) +
   geom_boxplot() +
-  labs(title = "Distribution of Median House Value Grouped By Chas",x='chas',y='median value')+
+  labs(title = "Distribution of Median House Value Grouped By Chas",x='chas',y='median value ($000)')+
   theme_minimal()
 
 
 ```
 
-The shape of the distribution of median house values is fairly bell-shaped, with 41% (208) of median house values falling between \~\$18K and \$23K.\
-While 93% (471) of observations belong to the category with chas=0, the median house value for observations with chas=1 is 11% higher at \$23,3K compared to those in the chas=0 category. Additionally, the observations in the chas=1 group show a skew towards higher values, unlike the chas=0 group, which has a more balanced distribution around the median. Despite these differences in distribution, the two box plots overlap, suggesting that the difference in means between the two groups may not be immediately statistically significant (a difference-of-means hypothesis test would have to be conducted to formalize this).
+The shape of the distribution of median house values is fairly bell-shaped, with 41% (208) of median house values falling between approximately \$18K and \$23K. While 93% (471) of observations belong to the category with `chas = 0`, the median house value for observations with `chas = 1` is 11% higher at \$23.3K compared to those in the `chas = 0` category. Additionally, observations in the `chas = 1` group show a skew towards higher values, unlike those in the `chas = 0` group, which exhibit a more balanced distribution around the median. Despite these differences in distribution, the two boxplots overlap, suggesting that the observed difference in means between the two groups may not be immediately statistically significant[^1].
+
+[^1]: A difference-of-means hypothesis test would need to be conducted to formally assess whether the observed difference between group means is statistically significant.
 
 ```{r rad_index_dist, eval=TRUE, echo=FALSE}
 #| message: false
@@ -262,7 +266,7 @@ fig5=boston_data %>%
   mutate(rad=factor(rad,levels=(sort(unique(boston_data$rad)) ))) %>% 
   ggplot(aes(x=rad,y=medv,fill = rad) ) +
   geom_boxplot() +
-  labs(title = "Distribution of Median House Value Grouped By Rad Index",x='rad index',y='median value')+
+  labs(title = "Distribution of Median House Value Grouped By Rad Index",x='rad index',y='median value ($000)')+
   theme_minimal()
   
 
@@ -333,7 +337,7 @@ boston_data %>% dplyr::select(all_of(names(boston_data))) %>% mutate(chas=factor
 
 The correlations between the response variable, **medv**, and all other numeric features are significant at the 1% level. The observed relationship between medv and its highest correlated feature, **lstat** appears to be negatively non-linear upon visual inspection of the shape of the scatter plot.
 
-Grouped by the **chas** feature, for cases where chas =1 (which have shown to have higher median house values) median house values correlations lose their statistical significance with 7 features, namely **crime, indus, age ,dis, rad, tax, and ptratio.\
+Grouped by the **chas** feature, for cases where chas =1 (which have shown to have higher median house values) median house values correlations lose their statistical significance across 7 features, namely **crime, indus, age ,dis, rad, tax, and ptratio.\
 **\
 Another interesting feature interaction is that of the **nox** and the **dis** features, which show a significant negative correlation, with the shape of the scatter plot also indicating non-linearity. This is intuitively reasonable as the greater the distance to employment centers, the less traffic in the area, resulting in lower levels of pollutants (nox).
 
@@ -430,7 +434,7 @@ Model Performance:
 
 -   9 out of the 12 feature coefficients (excluding the intercept) are statistically different from 0 at at lest the 10% level, with 9 of these significant at the 1% level
 
--   Nitrogen Oxide (nox) levelsshow the biggest marginal change , in absolute value, to median house values, medv, with an estimated negative change of -20.6K in estimated average houspe values per one unit increase in nox levels.
+-   Nitrogen Oxide concentration (nox) levels show the biggest marginal contributer, in absolute value, to median house values, medv, with an estimated negative change of -\$20.6K in estimated average house values per one unit increase in nox levels.
 
 -   The F statistic is also significant at the 1% level, indicating that the coefficients of the model are jointly statistically different from 0.
 
@@ -483,7 +487,7 @@ kable(bl_mse,caption='Baseline Test MSE')
 
 ```
 
-The out-of-sample (OOO) MSE for the baseline model is at \$16.64K, that is, on average the baseline model's home values predictions are expected to deviate from the actual by this value (which is greater that the standard deviation of median house values of \~\$9.2K).
+The out-of-sample (OOO) MSE for the baseline model is \$16.64K, that is, on average the baseline model's home values predictions are expected to deviate from their actual by this values (which is greater that the standard deviation of median house values of \~\$9.2K).
 
 # Model Improvement
 
@@ -601,11 +605,11 @@ Backward Step Regression Results:
 
 1.  The step model reached the lowest AIC (\~2408) and BIC(\~2456) after 3 iterations with 10 out of the 12 features retained (subsequent removals of features did no improve scores).
 
-2.  Retained Features: **crime, zn, chas, nox, rm, dis, rad, tax, ptratio and lstat** with the **age** and **indus** variables removed**.** All of these are still statistically significant at least up to the 10% level.
+2.  Features **crime, zn, chas, nox, rm, dis, rad, tax, ptratio and lstat** are retained whilst the **age** and **indus** variables are removed**.** All of these are still statistically significant at least up to the 10% level.
 
-3.  All regressors also maintain their sign with very little changes to their marginal effects with respect to the response variable.
+3.  All regressors also maintain their sign with very little changes to their marginal effects with respect to the response variable (realtive to the baseline model).
 
-4.  R square (\~74%) and the F statistic (significant at 1%) are still in the same region as the baseline model.
+4.  R square (\~74%) and the F statistic (significant at 1%) are still in the same range and region as the baseline model.
 
 **Ridge and Lasso Regression**
 
@@ -820,7 +824,7 @@ knitr::kable(
 
 Regression Results:
 
-1.  The best regularization parameters for the Ridge and LASSO models are reached at at $\lambda$ =0.69 (CV_MSE~min~ of \~25.48) and 0.69 ( CV_MSE~min~ \~27.9), respectively . The 1~se~ equivalent parameters for Ridge and LASSO are obtained at $\lambda$=4.86 (CV_MSE~min~ \~28.79) and $\lambda$=0.67 (CV_MSE~min~ \~27.99).
+1.  The best regularization parameters for the Ridge and LASSO models are reached at at $\lambda$ =0.69 (CV_MSE~min~ of \~25.48) and 0.03 ( CV_MSE~min~ \~27.9), respectively . The 1~se~ equivalent parameters for Ridge and LASSO are obtained at $\lambda$=4.86 (CV_MSE~min~ \~28.79) and $\lambda$=0.67 (CV_MSE~min~ \~27.99).
 2.  For the simplest model, LASSO~1SE~ , 7 non-zero coefficients remained in the final model; the coefficients of **zn, indus, age,** and **rad** were all pushed to zero. In particular, **zn and rad** were statistically significant in the baseline model.
 3.  The **nox** feature still maintains its position as the largest absolute marginal predictor of median house values across three out of the four models, with the **rm** feature having the largest marginal contribution to response variable in the LASSO 1~se~ model.
 4.  In addition to a change in magnitude, some feature coefficients also show a change in sign in some of the models: the **indus** coefficient changes from positive to negative from the baseline in both the Ridge~1SE~ and Ridge~min~ models while the **rad** feature coefficient changes sign in the Ridge~1SE~ model (although this feature coefficient is highly penalized relative to the baseline).
@@ -909,26 +913,26 @@ All the model predictions show relatively good fit to the general shape and tren
 
 **Inclusion of Interaction Term**
 
-Method: The **chas** and **rad**[^1] categorical variable provides an easy way of segmenting the data into distinct groups for which interactions with other variables can be analyzed. Thus the following process is used to choose the interaction feature:
+Method: The **chas** and **rad**[^2] categorical variable provides an easy way of segmenting the data into distinct groups for which interactions with other variables can be created and analyzed. Thus the following process is used to choose the interaction feature:
 
-[^1]: Measured as an index as per meta data definition
+[^2]: Measured as an index as per meta data definition
 
 1.  Create interaction terms for all features with the chas feature: ${ChasIntVar}=\text{Feature}_i \times \text{chas}$
 
 2.  Do the same for the rad feature: ${RadIntVar}=\text{Feature}_i \times \text{rad}$
 
-3.  Analyze the correlations of all these interaction variables wth respect to the response variable, and choose the interaction with the highest, and most statistically significant correlation.
+3.  Analyze the correlations of all these interaction variables with respect to the response variable, and choose the interaction with the highest, and most statistically significant correlation.
 
 4.  Add this term to the best-performing model, which in this case was the **full variable regression.**
 
-5.  Again, for the sake of data completeness, the interaction correlation analysis is done on the full data set before addition to the model.
+5.  Again, for the sake of data completeness, the interaction correlation analysis is done on the full data set before the addition to the model.
 
 ```{r int_corrs_chas,echo=FALSE,eval=TRUE}
 #| message: false
 #| warning: false
 #| fig-height: 12
 #| fig-width: 14
-#| fig-cap: "Interaction Features Pairplot"
+#| fig-cap: "Interaction Features Pairplot-chas feature"
 
 boston_data_chas=boston_data
 int_feats=c('medv')
@@ -959,6 +963,7 @@ boston_data_chas %>% dplyr::select(any_of(int_feats[int_feats!='chas_chas'])) %>
 #| warning: false
 #| fig-height: 10
 #| fig-width: 14
+#| fig-cap: "Interaction Features Pairplot- rad feature"
 
 boston_data_rad=boston_data
 int_feats=c('medv')
@@ -984,75 +989,7 @@ boston_data_rad %>% dplyr::select(any_of(  int_feats[int_feats!='rad_rad']  )) %
 
 ```
 
-Across both pair plots, the lstat_rad interaction feature show the highest (in abolute value) and most statistically significant correlation (at 1%) amongst interacted features. This will be added to the training data for the best performing model.
-
-```{r, interaction,eval=F,echo=F}
-
-# find an article to support this
-
-# cantidates= indus*dis or indus*nox (high population traffic area- more polution)
-
-# use an interaction plot to spot possible interactions
-
-#features
-# boston_data$chas=factor(boston_data$chas,levels=c(0,1))
-# with(boston_data,{interaction.plot(chas,rad,medv,fixed=T)}
-# )
-
-vars=names(all_feat_model$coefficients)
-vars_final=vars[vars!='chas1']
- 
-
-coeff=numeric()
-
-for(i in 1:length(all_feat_model$coefficients)){
- coeff[i]= all_feat_model$coefficients[[i]]
-}
-
-
-vars[i]
-
-chas_ind=which(vars=='chas1')
-chas_coeff=coeff[chas_ind]
-chas_= boston_data_training %>% dplyr::select(chas) %>% pull()
-coeff=coeff[-chas_ind]
-
-# features[features!='chas']
-# c_=all_feat_model$coefficients
-# c_[!c_ %in% c('chas')]
-
-
-
-for(i in 2:length(vars_final)){
-  var_name=vars_final[i]
-  #i=2
-  x_df =boston_data_training %>%
-  dplyr::select(any_of(c(var_name, 'chas', 'medv') )) 
-  x=x_df %>% dplyr::select(var_name) %>% pull()
-  f_x=function(x) coeff[1]+coeff[i]*x+chas_coeff*chas_
-  x_df$predictions=f_x(x)
-  
-  p <- ggplot(x_df, aes(x = .data[[var_name]], color = factor(chas))) +
-    geom_point(aes(y = medv)) +
-    geom_line(aes(y = predictions, group = chas)) +
-    labs(
-      title = paste("Median House Value vs", var_name),
-      x = var_name,
-      y = "medv"
-    ) +
-    theme_minimal()
-  
-  print(ggplotly(p))
-    
-  
-  
-  
-  
-}
-# Roupgly the difference between the two groups shoulf form a straight line which we could interprete as either an interaction exists or not
-
-
-```
+Across both pair plots, the **lstat_rad** interaction feature show the highest (in absolute value) and most statistically significant correlation (at 1%) among interacted features. This will be added to the training data for the best performing model.
 
 ```{r,int_regress,eval=T,echo=F}
 #| tbl-pos: H
@@ -1101,7 +1038,7 @@ int_regr=tbl_regression(all_feat_with_int_model,
 
 ![Interaction-Variable-Included Regression Summary](int_var_regr_summ.png)
 
-Despite the significance of the two individual features, lstat and rad, the engineered interaction feature did not prove to be a statistically significant predictor of median house values \* talk about potential multicollinearity indications
+Despite the significance of the two individual features, **lstat and rad**, the engineered interaction feature did not prove to be a statistically significant predictor of median house values.
 
 ```{r,int_mse,echo=F,eval=T}
 int_test_data=test_data
@@ -1121,7 +1058,7 @@ kable(mse_comp,caption = 'Test Data MSE Comaparison: Baseline vs Interaction -In
 
 ```
 
-Again. the inclusion of the interaction did not improve model performance, although the model mse deterioration was marginal compared to the test MSEs of LASSO and Ridge regressions.
+Again, the inclusion of the interaction did not improve model performance, although the model mse deterioration was marginal compared to the test MSEs of LASSO and Ridge regressions.
 
 # Residual Diagnostics
 
@@ -1162,15 +1099,15 @@ Despite being the best performing model, residual analysis of the baseline model
 
 1.  Normality: Although the histograms for both the train and test residuals may indicate normality, the standardized residual points on the QQ plot do not fall on the straight line when compared to the theoretical normal distribution quantiles, suggesting non-normality. This greatly affects the ability and validity of statistical inference, especially concerning hypothesis testing on the key regression statistics, including prediction confidence intervals of the response variable (although the estimated coefficients are mostly unaffected).
 
-2.  Homoscedasticity: The scale-location plot does not indicate that the variance of the residuals is constant[^2], rather it seems to follow an increasing trend when plotted against fitted values. This also greatly inhibit the ability to make valid statistical inferences, especially regarding the variance and precision of the regressors as well as the overall validity (significance) of the model.
+2.  Homoscedasticity: The scale-location plot does not indicate that the variance of the residuals is constant[^3], rather it seems to follow an increasing trend when plotted against fitted values. This also greatly inhibit the ability to make valid statistical inferences, especially regarding the variance and precision of the regressors as well as the overall validity (significance) of the model.
 
-[^2]: Homoscedasticity requires the plotted points to be scattered randomly about the line, with no discernible pattern.
+[^3]: Homoscedasticity requires the plotted points to be scattered randomly about the line, with no discernible pattern.
 
 # Conclusion: Considerations and Implications of the "Best" Model
 
 Model accuracy and inference play a significant role in selecting the appropriate model for a specific task, and no single metric wholly captures the overall performance of a model. Although the baseline model reported the best out-of-sample performance based on the test Mean Squared Error (MSE), its observed model diagnostics were inadequate; challenging efficacy and consistency of the model if inference is the ultimate objective.
 
-Multicollinearity is a key attribute of the data(which the baseline model cannot address with significant modification to the features) that significantly impacts the ability to disentangle the marginal influence of individual predictors on the response variable[@boriharn2023multicollinearity]. Ridge regression effectively penalizes the coefficients of highly correlated predictors (tax and rad) with a negligible impact on out-of-sample accuracy.\
+Multicollinearity is a key attribute of the data(which the baseline model cannot address without significant modification to the features) that significantly impacts the ability to disentangle the marginal influence of individual predictors on the response variable[@boriharn2023multicollinearity]. Ridge regression effectively penalizes the coefficients of highly correlated predictors (tax and rad) with a negligible impact on out-of-sample accuracy.\
 \
 Additionally, increasing model complexity through the addition of the interaction term did not improve accuracy; the term itself proved to be a statistically insignificant predictor of house values. Across the models, **pollutant levels (nox)** and the **average number of rooms per dwelling (rm)** emerged as the most significant marginal predictors of house values, consistently maintaining their rank and sign.
 
