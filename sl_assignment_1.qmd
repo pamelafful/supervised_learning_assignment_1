@@ -50,6 +50,8 @@ execute:
 bibliography: references.bib
 ---
 
+![](plagiarism declaration.jpg){width="600"}
+
 ```{r libs, eval=TRUE, echo=FALSE}
 #| message: false
 #| warning: false
