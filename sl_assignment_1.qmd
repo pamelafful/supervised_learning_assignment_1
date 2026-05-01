@@ -1127,4 +1127,6 @@ vif_tab=data.frame(as.matrix(vif_values)) %>% rename(VIF=as.matrix.vif_values.)
 kable(vif_tab,caption='Baseline Model: Feature Variance Inflation Factor')
 ```
 
-All features moderate to high variance inflation factors, further supporting evidence of multicollinearity among features, with the biggest contributers are being the tax and rad features.
+All features moderate to high variance inflation factors, further supporting evidence of multicollinearity among features, with the biggest contributors are being the tax and rad features.
+
+## References
